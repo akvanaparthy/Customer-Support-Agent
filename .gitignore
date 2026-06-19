@@ -1,0 +1,13 @@
+Goal.md
+./claude
+docs
+# Python
+__pycache__/
+*.pyc
+.venv/
+# Secrets & data
+.env
+*.db
+# Node / frontend
+node_modules/
+dist/
