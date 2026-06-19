@@ -56,3 +56,9 @@ class ChatResponse(BaseModel):
     decision: Optional[str] = None
     trace_id: str
     session_id: str
+
+
+class OrderUpdate(BaseModel):
+    status: Optional[str] = None
+    is_refunded: Optional[bool] = None
+    is_final_sale: Optional[bool] = None

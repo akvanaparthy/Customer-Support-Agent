@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import date
 
 
 def _row(row: sqlite3.Row | None) -> dict | None:
@@ -54,3 +55,39 @@ def count_prior_refunds(conn, customer_id: int) -> int:
         (customer_id,),
     ).fetchone()
     return row["c"]
+
+
+ALLOWED_ORDER_STATUSES = {"processing", "shipped", "delivered", "cancelled"}
+
+
+def list_all_orders(conn) -> list[dict]:
+    """All orders across customers, with the owning customer's name/email (admin view)."""
+    rows = conn.execute(
+        """SELECT o.*, c.name AS customer_name, c.email AS customer_email
+           FROM orders o JOIN customers c ON c.id = o.customer_id
+           ORDER BY o.id"""
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def update_order(conn, order_id, status=None, is_refunded=None, is_final_sale=None) -> dict | None:
+    """Admin manual edit of an order's status/flags. Returns the updated order, or None if not found."""
+    if get_order(conn, order_id) is None:
+        return None
+    sets, params = [], []
+    if status is not None:
+        sets.append("status = ?")
+        params.append(status)
+    if is_refunded is not None:
+        sets.append("is_refunded = ?")
+        params.append(1 if is_refunded else 0)
+        sets.append("refund_date = ?")
+        params.append(date.today().isoformat() if is_refunded else None)
+    if is_final_sale is not None:
+        sets.append("is_final_sale = ?")
+        params.append(1 if is_final_sale else 0)
+    if sets:
+        params.append(order_id)
+        conn.execute(f"UPDATE orders SET {', '.join(sets)} WHERE id = ?", params)
+        conn.commit()
+    return get_order(conn, order_id)

@@ -57,3 +57,19 @@ export interface Trace extends TraceSummary {
   customer_id: number | null;
   steps: TraceStep[];
 }
+
+export interface AdminOrder {
+  id: number;
+  customer_id: number;
+  customer_name: string;
+  customer_email: string;
+  item_name: string;
+  category: string;
+  amount: number;
+  status: string;
+  order_date: string;
+  delivered_date: string | null;
+  is_final_sale: number;
+  is_refunded: number;
+  refund_date: string | null;
+}

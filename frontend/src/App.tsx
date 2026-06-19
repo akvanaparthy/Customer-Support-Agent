@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import ChatWindow from "./components/ChatWindow";
 import AdminDashboard from "./components/AdminDashboard";
+import OrdersAdmin from "./components/OrdersAdmin";
 import type { Customer } from "./types";
 
-type Tab = "chat" | "admin";
+type Tab = "chat" | "admin" | "orders";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
@@ -26,7 +27,7 @@ export default function App() {
       <header className="flex items-center gap-4 border-b bg-white px-6 py-3">
         <h1 className="font-semibold">🛒 Refund Support Agent</h1>
         <nav className="flex gap-2 text-sm">
-          {(["chat", "admin"] as Tab[]).map((t) => (
+          {(["chat", "admin", "orders"] as Tab[]).map((t) => (
             <button
               key={t}
               className={`rounded px-3 py-1 capitalize ${tab === t ? "bg-slate-800 text-white" : "hover:bg-slate-100"}`}
@@ -40,8 +41,10 @@ export default function App() {
       <main className="p-6">
         {tab === "chat" ? (
           <ChatWindow customers={customers} sessionId={sessionId} onViewTrace={viewTrace} />
-        ) : (
+        ) : tab === "admin" ? (
           <AdminDashboard focusTraceId={focusTraceId} />
+        ) : (
+          <OrdersAdmin />
         )}
       </main>
     </div>

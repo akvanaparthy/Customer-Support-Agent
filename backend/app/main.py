@@ -11,7 +11,7 @@ from app.config import settings
 from app.data import crm
 from app.data.db import connect
 from app.data.seed import ensure_seeded
-from app.models import ChatRequest, ChatResponse
+from app.models import ChatRequest, ChatResponse, OrderUpdate
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,6 +51,32 @@ def customers():
     conn = connect(settings.db_path)
     try:
         return {"customers": crm.list_customers_with_orders(conn)}
+    finally:
+        conn.close()
+
+
+@app.get("/api/orders")
+def orders():
+    conn = connect(settings.db_path)
+    try:
+        return {"orders": crm.list_all_orders(conn)}
+    finally:
+        conn.close()
+
+
+@app.patch("/api/orders/{order_id}")
+def patch_order(order_id: int, body: OrderUpdate):
+    if body.status is not None and body.status not in crm.ALLOWED_ORDER_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    conn = connect(settings.db_path)
+    try:
+        updated = crm.update_order(
+            conn, order_id,
+            status=body.status, is_refunded=body.is_refunded, is_final_sale=body.is_final_sale,
+        )
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Order not found")
+        return updated
     finally:
         conn.close()
 

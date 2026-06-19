@@ -40,3 +40,35 @@ def test_chat_unknown_customer(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "run_turn", lambda *a, **k: ("", None, None, []))
     c = _client(tmp_path)
     assert c.post("/api/chat", json={"session_id": "s1", "customer_id": 999, "message": "hi"}).status_code == 404
+
+
+def test_orders_list(tmp_path):
+    c = _client(tmp_path)
+    data = c.get("/api/orders").json()["orders"]
+    assert len(data) == 30
+    o = next(x for x in data if x["id"] == 1001)
+    assert o["customer_name"] == "Alice Tan"
+
+
+def test_update_order_status(tmp_path):
+    c = _client(tmp_path)
+    r = c.patch("/api/orders/1007", json={"status": "delivered"})
+    assert r.status_code == 200 and r.json()["status"] == "delivered"
+    o = next(x for x in c.get("/api/orders").json()["orders"] if x["id"] == 1007)
+    assert o["status"] == "delivered"
+
+
+def test_update_order_refunded_toggle(tmp_path):
+    c = _client(tmp_path)
+    r = c.patch("/api/orders/1001", json={"is_refunded": True})
+    assert r.status_code == 200 and r.json()["is_refunded"] == 1
+
+
+def test_update_order_invalid_status(tmp_path):
+    c = _client(tmp_path)
+    assert c.patch("/api/orders/1001", json={"status": "frozen"}).status_code == 400
+
+
+def test_update_unknown_order(tmp_path):
+    c = _client(tmp_path)
+    assert c.patch("/api/orders/999999", json={"status": "delivered"}).status_code == 404
