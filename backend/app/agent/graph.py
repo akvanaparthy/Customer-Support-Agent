@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import date
 from typing import Any, Optional, TypedDict
@@ -17,6 +18,34 @@ RETRYABLE = (
     anthropic.APIConnectionError,
     anthropic.InternalServerError,
 )
+
+
+def _get(b, key, default=None):
+    return b.get(key, default) if isinstance(b, dict) else getattr(b, key, default)
+
+
+def _serialize_context(system: str, messages: list) -> dict:
+    """Readable snapshot of the exact prompt sent to the model, for the trace viewer."""
+    def summarize(content):
+        if isinstance(content, str):
+            return content[:1000]
+        parts = []
+        for b in content:
+            t = _get(b, "type")
+            if t == "text":
+                parts.append((_get(b, "text", "") or "")[:1000])
+            elif t == "tool_use":
+                parts.append(f"[tool_use: {_get(b, 'name')}({json.dumps(_get(b, 'input'))[:300]})]")
+            elif t == "tool_result":
+                parts.append(f"[tool_result: {str(_get(b, 'content', ''))[:500]}]")
+            else:
+                parts.append(f"[{t}]")
+        return "\n".join(parts)
+
+    return {
+        "system": system,
+        "messages": [{"role": m["role"], "content": summarize(m["content"])} for m in messages],
+    }
 
 
 class AgentState(TypedDict):
@@ -57,6 +86,7 @@ def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
                 output=text_out or "[requested tool call]",
                 tokens_in=resp.usage.input_tokens, tokens_out=resp.usage.output_tokens,
                 latency_ms=latency,
+                context=_serialize_context(state["system"], state["messages"]),
             )
             return resp
         except RETRYABLE as exc:

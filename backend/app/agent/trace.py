@@ -27,11 +27,11 @@ class TraceRecorder:
         self.steps: list[TraceStep] = []
 
     def add_step(self, type, name, input=None, output=None,
-                 tokens_in=0, tokens_out=0, latency_ms=0, status="ok"):
+                 tokens_in=0, tokens_out=0, latency_ms=0, status="ok", context=None):
         self.steps.append(TraceStep(
             type=type, name=name, input=input, output=output,
             tokens_in=tokens_in, tokens_out=tokens_out, latency_ms=latency_ms,
-            cost_usd=compute_cost(tokens_in, tokens_out), status=status,
+            cost_usd=compute_cost(tokens_in, tokens_out), status=status, context=context,
         ))
 
     def finalize(self, decision) -> Trace:

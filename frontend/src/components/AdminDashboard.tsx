@@ -97,6 +97,27 @@ export default function AdminDashboard({ focusTraceId }: { focusTraceId: string 
                       out: {typeof s.output === "string" ? s.output : JSON.stringify(s.output)}
                     </pre>
                   )}
+                  {s.context && (
+                    <details className="mt-2">
+                      <summary className="cursor-pointer select-none text-slate-500">
+                        ▸ view exact prompt sent to the model ({s.context.messages.length} messages + system)
+                      </summary>
+                      <div className="mt-2 space-y-2 rounded bg-slate-50 p-2">
+                        <div>
+                          <div className="text-[10px] font-semibold uppercase text-slate-400">system</div>
+                          <pre className="whitespace-pre-wrap break-words text-slate-600">{s.context.system}</pre>
+                        </div>
+                        {s.context.messages.map((m, j) => (
+                          <div key={j}>
+                            <div className="text-[10px] font-semibold uppercase text-slate-400">
+                              {j + 1}. {m.role}
+                            </div>
+                            <pre className="whitespace-pre-wrap break-words text-slate-700">{m.content}</pre>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
                 </li>
               ))}
             </ol>

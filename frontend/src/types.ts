@@ -27,6 +27,11 @@ export interface ChatResponse {
   session_id: string;
 }
 
+export interface PromptContext {
+  system: string;
+  messages: { role: string; content: string }[];
+}
+
 export interface TraceStep {
   type: string;
   name: string;
@@ -37,6 +42,7 @@ export interface TraceStep {
   latency_ms: number;
   cost_usd: number;
   status: string;
+  context?: PromptContext | null;
 }
 
 export interface TraceSummary {

@@ -13,6 +13,7 @@ class TraceStep(BaseModel):
     latency_ms: int = 0
     cost_usd: float = 0.0
     status: str = "ok"  # ok | retried | error
+    context: Any = None  # for llm_call steps: the exact {system, messages} sent to the model
 
 
 class Trace(BaseModel):
