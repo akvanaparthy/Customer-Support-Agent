@@ -6,10 +6,14 @@ from app.config import settings
 from app.models import Trace, TraceStep, TraceSummary
 
 
-def compute_cost(tokens_in: int, tokens_out: int) -> float:
-    return (tokens_in / 1_000_000) * settings.price_input_per_mtok + (
-        tokens_out / 1_000_000
-    ) * settings.price_output_per_mtok
+def compute_cost(tokens_in: int, tokens_out: int, cache_read: int = 0, cache_write: int = 0) -> float:
+    p_in = settings.price_input_per_mtok
+    return (
+        (tokens_in / 1_000_000) * p_in
+        + (cache_read / 1_000_000) * p_in * 0.1      # cache reads are 10x cheaper
+        + (cache_write / 1_000_000) * p_in * 1.25    # 5-minute cache writes are 1.25x
+        + (tokens_out / 1_000_000) * settings.price_output_per_mtok
+    )
 
 
 def now_iso() -> str:
@@ -27,11 +31,14 @@ class TraceRecorder:
         self.steps: list[TraceStep] = []
 
     def add_step(self, type, name, input=None, output=None,
-                 tokens_in=0, tokens_out=0, latency_ms=0, status="ok", context=None):
+                 tokens_in=0, tokens_out=0, latency_ms=0, status="ok", context=None,
+                 cache_read=0, cache_write=0):
         self.steps.append(TraceStep(
             type=type, name=name, input=input, output=output,
-            tokens_in=tokens_in, tokens_out=tokens_out, latency_ms=latency_ms,
-            cost_usd=compute_cost(tokens_in, tokens_out), status=status, context=context,
+            tokens_in=tokens_in, tokens_out=tokens_out,
+            cache_read=cache_read, cache_write=cache_write, latency_ms=latency_ms,
+            cost_usd=compute_cost(tokens_in, tokens_out, cache_read, cache_write),
+            status=status, context=context,
         ))
 
     def finalize(self, decision) -> Trace:

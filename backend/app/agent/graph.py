@@ -6,7 +6,7 @@ from typing import Any, Optional, TypedDict
 import anthropic
 from langgraph.graph import END, StateGraph
 
-from app.agent.guardrails import detect_manipulation, validate_output
+from app.agent.guardrails import build_security_reminder, detect_manipulation, validate_output
 from app.agent.prompts import build_system_prompt
 from app.agent.tools import TOOL_SCHEMAS, ToolContext, execute_tool
 from app.agent.trace import TraceRecorder
@@ -75,6 +75,9 @@ def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
                 system=state["system"],
                 messages=state["messages"],
                 tools=TOOL_SCHEMAS,
+                # Prompt caching: auto-cache the stable prefix (tools + system + prior
+                # turns). Each new turn reads that prefix at 0.1x instead of full price.
+                cache_control={"type": "ephemeral"},
             )
             latency = int((time.perf_counter() - start) * 1000)
             text_out = "".join(
@@ -85,6 +88,8 @@ def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
                 input={"messages_in_context": len(state["messages"]), "attempt": attempt + 1},
                 output=text_out or "[requested tool call]",
                 tokens_in=resp.usage.input_tokens, tokens_out=resp.usage.output_tokens,
+                cache_read=getattr(resp.usage, "cache_read_input_tokens", 0) or 0,
+                cache_write=getattr(resp.usage, "cache_creation_input_tokens", 0) or 0,
                 latency_ms=latency,
                 context=_serialize_context(state["system"], state["messages"]),
             )
@@ -158,11 +163,17 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message):
         status="flagged" if flags else "ok",
     )
 
-    messages = list(history) + [{"role": "user", "content": user_message}]
+    # Inject the per-turn security reminder into the USER turn (not the cached system
+    # prefix) so the system prompt stays byte-identical across turns and caches cleanly.
+    user_content = user_message
+    if flags:
+        user_content = build_security_reminder(flags) + "\n\n" + user_message
+
+    messages = list(history) + [{"role": "user", "content": user_content}]
     state: AgentState = {
         "messages": messages, "client": client, "conn": conn, "customer": customer,
         "today": date.today(), "recorder": recorder, "decision": None,
-        "system": build_system_prompt(customer, manipulation_flags=flags),
+        "system": build_system_prompt(customer),
     }
     final = graph.invoke(state)
 

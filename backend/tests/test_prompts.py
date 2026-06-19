@@ -19,8 +19,7 @@ def test_prompt_includes_strict_workflow():
     assert "rubber stamp" in p
 
 
-def test_security_note_injected_when_flagged():
-    p = build_system_prompt({"name": "Alice Tan", "id": 1, "tier": "standard"},
-                            manipulation_flags=["authority_claim"])
-    assert "SECURITY ALERT" in p
-    assert "authority_claim" in p
+def test_prompt_is_stable_across_calls():
+    # must be byte-identical across turns for prompt caching to hit
+    c = {"name": "Alice Tan", "id": 1, "tier": "standard"}
+    assert build_system_prompt(c) == build_system_prompt(c)

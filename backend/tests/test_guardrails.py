@@ -1,4 +1,16 @@
-from app.agent.guardrails import claims_refund_completed, detect_manipulation, validate_output
+from app.agent.guardrails import (
+    build_security_reminder,
+    claims_refund_completed,
+    detect_manipulation,
+    validate_output,
+)
+
+
+def test_security_reminder_contains_flags():
+    r = build_security_reminder(["authority_claim", "instruction_override"])
+    assert "system-reminder" in r
+    assert "authority_claim" in r
+    assert "override" in r.lower()
 
 
 def test_detects_injection():

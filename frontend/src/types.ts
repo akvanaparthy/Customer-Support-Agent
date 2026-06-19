@@ -39,6 +39,8 @@ export interface TraceStep {
   output: unknown;
   tokens_in: number;
   tokens_out: number;
+  cache_read?: number;
+  cache_write?: number;
   latency_ms: number;
   cost_usd: number;
   status: string;

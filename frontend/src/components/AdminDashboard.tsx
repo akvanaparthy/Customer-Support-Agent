@@ -73,6 +73,10 @@ export default function AdminDashboard({ focusTraceId }: { focusTraceId: string 
               <span>Decision: <b>{trace.decision ?? "—"}</b></span>
               <span>Steps: <b>{trace.step_count}</b></span>
               <span>Tokens: <b>{trace.total_tokens_in + trace.total_tokens_out}</b></span>
+              <span>
+                Cache: <b>{trace.steps.reduce((a, s) => a + (s.cache_read ?? 0), 0)}</b> read ·{" "}
+                <b>{trace.steps.reduce((a, s) => a + (s.cache_write ?? 0), 0)}</b> written
+              </span>
               <span>Cost: <b>${trace.total_cost_usd.toFixed(5)}</b></span>
               <span>Latency: <b>{trace.total_latency_ms} ms</b></span>
             </div>
@@ -83,8 +87,10 @@ export default function AdminDashboard({ focusTraceId }: { focusTraceId: string 
                     <span>{i + 1}. {s.type} · {s.name}</span>
                     <span className="text-slate-500">
                       {s.latency_ms} ms
-                      {s.tokens_in + s.tokens_out > 0 &&
-                        ` · ${s.tokens_in}/${s.tokens_out} tok · $${s.cost_usd.toFixed(6)}`}
+                      {s.tokens_in + s.tokens_out > 0 && ` · ${s.tokens_in}/${s.tokens_out} tok`}
+                      {(s.cache_read ?? 0) > 0 && ` · ${s.cache_read} cached`}
+                      {(s.cache_write ?? 0) > 0 && ` · ${s.cache_write} cache-write`}
+                      {s.tokens_in + s.tokens_out > 0 && ` · $${s.cost_usd.toFixed(6)}`}
                     </span>
                   </div>
                   {s.input != null && (

@@ -7,6 +7,12 @@ def test_compute_cost():
     assert compute_cost(1_000_000, 1_000_000) == 18.0
 
 
+def test_compute_cost_with_cache():
+    # 1M cache_read @ 0.1*3 = 0.30 ; 1M cache_write @ 1.25*3 = 3.75 ; 1M output @ 15 = 15
+    c = compute_cost(0, 1_000_000, cache_read=1_000_000, cache_write=1_000_000)
+    assert round(c, 4) == round(0.30 + 3.75 + 15, 4)
+
+
 def test_recorder_finalize_totals():
     r = TraceRecorder("sess-1", 1, "Alice Tan", "hi")
     r.add_step("llm_call", "claude", output="hi", tokens_in=1000, tokens_out=200, latency_ms=300)

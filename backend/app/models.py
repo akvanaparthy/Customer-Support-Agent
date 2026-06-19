@@ -10,6 +10,8 @@ class TraceStep(BaseModel):
     output: Any = None
     tokens_in: int = 0
     tokens_out: int = 0
+    cache_read: int = 0
+    cache_write: int = 0
     latency_ms: int = 0
     cost_usd: float = 0.0
     status: str = "ok"  # ok | retried | error
