@@ -8,8 +8,18 @@ def _ctx(conn, customer_id):
     return ToolContext(conn=conn, customer_id=customer_id, today=date.today())
 
 
+def test_issue_refund_requires_reason(seeded_conn):
+    # R7: no reason/category -> refused, nothing recorded
+    res = execute_tool("issue_refund", {"order_id": 1001}, _ctx(seeded_conn, 1))
+    assert res.is_error is True
+    assert json.loads(res.content)["error"] == "reason_required"
+    assert seeded_conn.execute("SELECT is_refunded FROM orders WHERE id=1001").fetchone()["is_refunded"] == 0
+
+
 def test_issue_refund_blocks_final_sale(seeded_conn):
-    res = execute_tool("issue_refund", {"order_id": 1002}, _ctx(seeded_conn, 1))
+    res = execute_tool(
+        "issue_refund", {"order_id": 1002, "reason": "stopped working", "reason_category": "defective"}, _ctx(seeded_conn, 1)
+    )
     payload = json.loads(res.content)
     assert payload["refunded"] is False
     assert res.decision == "denied"
@@ -18,14 +28,19 @@ def test_issue_refund_blocks_final_sale(seeded_conn):
 
 
 def test_issue_refund_approves_clean(seeded_conn):
-    res = execute_tool("issue_refund", {"order_id": 1001}, _ctx(seeded_conn, 1))
+    res = execute_tool(
+        "issue_refund", {"order_id": 1001, "reason": "earbuds dead on arrival", "reason_category": "defective"}, _ctx(seeded_conn, 1)
+    )
     assert json.loads(res.content)["refunded"] is True
     assert res.decision == "approved"
     assert seeded_conn.execute("SELECT is_refunded FROM orders WHERE id=1001").fetchone()["is_refunded"] == 1
+    assert seeded_conn.execute("SELECT reason FROM refunds WHERE order_id=1001").fetchone()["reason"].startswith("[defective]")
 
 
 def test_issue_refund_escalates_over_threshold(seeded_conn):
-    res = execute_tool("issue_refund", {"order_id": 1003}, _ctx(seeded_conn, 2))
+    res = execute_tool(
+        "issue_refund", {"order_id": 1003, "reason": "screen cracked", "reason_category": "damaged"}, _ctx(seeded_conn, 2)
+    )
     assert json.loads(res.content)["refunded"] is False
     assert res.decision == "escalated"
 

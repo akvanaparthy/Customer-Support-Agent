@@ -63,3 +63,45 @@ def test_deny_takes_precedence_over_escalate():
     d = evaluate_refund(_order(amount=900.0, is_final_sale=1), 1, TODAY)
     assert d.decision == "DENY"
     assert "R3_final_sale" in d.matched_rules
+
+
+# --- R8: buyer's-remorse window ---------------------------------------------
+
+def test_changed_mind_outside_buyer_window_denies():
+    # delivered 20 days ago: inside the 30-day window (R5 ok) but past the 14-day remorse window
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=20)).isoformat()),
+        1, TODAY, reason_category="changed_mind",
+    )
+    assert d.decision == "DENY"
+    assert "R8_buyer_remorse_window" in d.matched_rules
+
+
+def test_changed_mind_within_buyer_window_approves():
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=10)).isoformat()),
+        1, TODAY, reason_category="changed_mind",
+    )
+    assert d.decision == "APPROVE"
+
+
+def test_defect_uses_full_window_not_buyer_window():
+    # 20 days, defective -> R8 does not apply, still inside 30-day window -> APPROVE
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=20)).isoformat()),
+        1, TODAY, reason_category="defective",
+    )
+    assert d.decision == "APPROVE"
+
+
+# --- R9: serial-return abuse ------------------------------------------------
+
+def test_abuse_escalates():
+    d = evaluate_refund(_order(), 1, TODAY, prior_refund_count=2)
+    assert d.decision == "ESCALATE"
+    assert "R9_refund_abuse" in d.matched_rules
+
+
+def test_abuse_below_threshold_approves():
+    d = evaluate_refund(_order(), 1, TODAY, prior_refund_count=1)
+    assert d.decision == "APPROVE"

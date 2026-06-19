@@ -10,6 +10,8 @@ const badge: Record<string, string> = {
 
 function stepColor(s: TraceStep): string {
   if (s.status === "error") return "border-red-300 bg-red-50";
+  if (s.status === "flagged" || s.type === "input_guardrail" || s.type === "output_guardrail")
+    return "border-purple-300 bg-purple-50";
   if (s.status === "retried" || s.type === "retry") return "border-amber-300 bg-amber-50";
   return "border-slate-200 bg-white";
 }

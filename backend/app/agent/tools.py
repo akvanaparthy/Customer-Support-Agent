@@ -8,6 +8,10 @@ from app.data.policy_engine import evaluate_refund
 
 _BADGE = {"APPROVE": "approved", "DENY": "denied", "ESCALATE": "escalated"}
 
+REASON_CATEGORIES = [
+    "defective", "damaged", "wrong_item", "not_as_described", "arrived_late", "changed_mind", "other",
+]
+
 
 @dataclass
 class ToolContext:
@@ -54,25 +58,33 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "check_refund_eligibility",
-        "description": "Check, without acting, whether an order is refundable under policy. Returns decision (APPROVE/DENY/ESCALATE), reasons, and matched rule IDs.",
+        "description": "Check, without acting, whether an order is refundable under policy. Pass the reason_category once you know it for an accurate check. Returns decision (APPROVE/DENY/ESCALATE), reasons, and matched rule IDs.",
         "input_schema": {
             "type": "object",
-            "properties": {"order_id": {"type": "integer"}},
+            "properties": {
+                "order_id": {"type": "integer"},
+                "reason_category": {"type": "string", "enum": REASON_CATEGORIES,
+                                    "description": "Why the customer wants a refund, if known."},
+            },
             "required": ["order_id"], "additionalProperties": False,
         },
     },
     {
         "name": "issue_refund",
-        "description": "Attempt to issue a refund for an order. The system re-validates against the policy engine and will refuse anything not eligible. Use only after confirming eligibility.",
+        "description": "Attempt to issue a refund. Requires a concrete reason and reason_category gathered from the customer (policy R7). The system re-validates against the policy engine and refuses anything ineligible. Only call after confirming eligibility and getting the customer's go-ahead.",
         "input_schema": {
             "type": "object",
-            "properties": {"order_id": {"type": "integer"}},
-            "required": ["order_id"], "additionalProperties": False,
+            "properties": {
+                "order_id": {"type": "integer"},
+                "reason": {"type": "string", "description": "The specific reason the customer gave."},
+                "reason_category": {"type": "string", "enum": REASON_CATEGORIES},
+            },
+            "required": ["order_id", "reason", "reason_category"], "additionalProperties": False,
         },
     },
     {
         "name": "escalate_to_human",
-        "description": "Escalate an order to a human agent (e.g. refunds over $500). Records an escalation ticket.",
+        "description": "Escalate an order to a human agent (e.g. refunds over $500 or accounts flagged for review). Records an escalation ticket.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -111,7 +123,9 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         o, err = _get_owned_order(ctx, tool_input.get("order_id"))
         if err:
             return err
-        d = evaluate_refund(o, ctx.customer_id, ctx.today)
+        prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
+        d = evaluate_refund(o, ctx.customer_id, ctx.today,
+                            reason_category=tool_input.get("reason_category"), prior_refund_count=prior)
         badge = _BADGE[d.decision] if d.decision != "APPROVE" else None
         return ToolResult(
             json.dumps({"decision": d.decision, "reasons": d.reasons, "matched_rules": d.matched_rules}),
@@ -122,18 +136,28 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         o, err = _get_owned_order(ctx, tool_input.get("order_id"))
         if err:
             return err
-        d = evaluate_refund(o, ctx.customer_id, ctx.today)
+        reason = (tool_input.get("reason") or "").strip()
+        category = tool_input.get("reason_category")
+        if not reason or category not in REASON_CATEGORIES:
+            return ToolResult(
+                json.dumps({"refunded": False, "error": "reason_required",
+                            "message": "A specific reason and reason_category are required before a refund can be issued (policy R7). Ask the customer what went wrong first."}),
+                is_error=True,
+            )
+        prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
+        d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category, prior_refund_count=prior)
         if d.decision != "APPROVE":
-            crm.record_refund(ctx.conn, o["id"], o["amount"], _BADGE[d.decision], "; ".join(d.reasons), now_iso())
+            crm.record_refund(ctx.conn, o["id"], o["amount"], _BADGE[d.decision],
+                              f"[{category}] {reason} | " + "; ".join(d.reasons), now_iso())
             return ToolResult(
                 json.dumps({"refunded": False, "decision": d.decision, "reasons": d.reasons,
                             "matched_rules": d.matched_rules, "message": "Refund refused by policy engine."}),
                 decision=_BADGE[d.decision],
             )
         crm.mark_order_refunded(ctx.conn, o["id"], now_iso()[:10])
-        crm.record_refund(ctx.conn, o["id"], o["amount"], "approved", "; ".join(d.reasons), now_iso())
+        crm.record_refund(ctx.conn, o["id"], o["amount"], "approved", f"[{category}] {reason}", now_iso())
         return ToolResult(
-            json.dumps({"refunded": True, "amount": o["amount"],
+            json.dumps({"refunded": True, "amount": o["amount"], "reason_category": category,
                         "message": f"Refund of ${o['amount']:.2f} issued for order #{o['id']}."}),
             decision="approved",
         )

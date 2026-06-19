@@ -47,6 +47,6 @@ def test_graph_runs_tool_then_finishes(seeded_conn):
         graph, FakeClient(responses), seeded_conn, "sess-1", customer, [], "where is order 1001?"
     )
     assert "1001" in reply
-    assert [s.type for s in trace.steps] == ["llm_call", "tool_call", "llm_call"]
+    assert [s.type for s in trace.steps] == ["input_guardrail", "llm_call", "tool_call", "llm_call"]
     assert trace.total_tokens_in == 2500
-    assert trace.step_count == 3
+    assert trace.step_count == 4

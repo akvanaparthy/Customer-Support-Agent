@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { api } from "../api";
 import type { Customer, Decision } from "../types";
 
@@ -80,13 +82,15 @@ export default function ChatWindow({
         )}
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "text-right" : "text-left"}>
-            <div
-              className={`inline-block whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
-                m.role === "user" ? "bg-slate-800 text-white" : "bg-slate-100"
-              }`}
-            >
-              {m.text}
-            </div>
+            {m.role === "user" ? (
+              <div className="inline-block whitespace-pre-wrap rounded-lg bg-slate-800 px-3 py-2 text-sm text-white">
+                {m.text}
+              </div>
+            ) : (
+              <div className="md inline-block max-w-full rounded-lg bg-slate-100 px-3 py-2 text-left text-sm">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
+              </div>
+            )}
             {m.role === "agent" && (m.decision || m.traceId) && (
               <div className="mt-1 flex items-center gap-2 text-xs">
                 {m.decision && (

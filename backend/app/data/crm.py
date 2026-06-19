@@ -45,3 +45,12 @@ def record_refund(conn, order_id: int, amount: float, decision: str, reason: str
         (order_id, amount, decision, reason, created_at),
     )
     conn.commit()
+
+
+def count_prior_refunds(conn, customer_id: int) -> int:
+    """How many of this customer's orders have already been refunded (serial-return signal)."""
+    row = conn.execute(
+        "SELECT COUNT(*) AS c FROM orders WHERE customer_id = ? AND is_refunded = 1",
+        (customer_id,),
+    ).fetchone()
+    return row["c"]

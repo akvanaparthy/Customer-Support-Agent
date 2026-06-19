@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     max_tokens: int = 1024
     refund_window_days: int = 30
     escalation_threshold: float = 500.0
+    buyer_remorse_window_days: int = 14
+    abuse_refund_threshold: int = 2
     price_input_per_mtok: float = 3.0
     price_output_per_mtok: float = 15.0
 

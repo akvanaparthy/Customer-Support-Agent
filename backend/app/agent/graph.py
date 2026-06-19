@@ -5,6 +5,7 @@ from typing import Any, Optional, TypedDict
 import anthropic
 from langgraph.graph import END, StateGraph
 
+from app.agent.guardrails import detect_manipulation, validate_output
 from app.agent.prompts import build_system_prompt
 from app.agent.tools import TOOL_SCHEMAS, ToolContext, execute_tool
 from app.agent.trace import TraceRecorder
@@ -117,13 +118,24 @@ def build_graph():
 
 def run_turn(graph, client, conn, session_id, customer, history, user_message):
     recorder = TraceRecorder(session_id, customer["id"], customer["name"], user_message)
+
+    # Layer 1 — pre-LLM input guardrail (deterministic manipulation scan).
+    flags = detect_manipulation(user_message)
+    recorder.add_step(
+        "input_guardrail", "manipulation_scan",
+        input=user_message[:300],
+        output=("flagged: " + ", ".join(flags)) if flags else "no manipulation detected",
+        status="flagged" if flags else "ok",
+    )
+
     messages = list(history) + [{"role": "user", "content": user_message}]
     state: AgentState = {
         "messages": messages, "client": client, "conn": conn, "customer": customer,
         "today": date.today(), "recorder": recorder, "decision": None,
-        "system": build_system_prompt(customer),
+        "system": build_system_prompt(customer, manipulation_flags=flags),
     }
     final = graph.invoke(state)
+
     reply = ""
     for msg in reversed(final["messages"]):
         if msg["role"] == "assistant":
@@ -131,5 +143,18 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message):
                 getattr(b, "text", "") for b in msg["content"] if getattr(b, "type", None) == "text"
             )
             break
-    trace = recorder.finalize(final.get("decision"))
-    return reply, final.get("decision"), trace, final["messages"]
+
+    decision = final.get("decision")
+
+    # Layer 5 — post-LLM output guardrail (block fabricated refund claims).
+    ok, safe = validate_output(reply, refund_approved=(decision == "approved"))
+    if not ok:
+        recorder.add_step(
+            "output_guardrail", "claim_validation",
+            input=reply[:300], output="Blocked an unverified refund-completion claim.",
+            status="flagged",
+        )
+        reply = safe
+
+    trace = recorder.finalize(decision)
+    return reply, decision, trace, final["messages"]
