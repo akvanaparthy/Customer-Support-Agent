@@ -1,10 +1,16 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Load the repo-root .env regardless of the working directory the app is started
+# from (so a single .env at the project root works for `uvicorn` run from
+# backend/ AND for Docker, where injected env vars take precedence anyway).
+_ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=str(_ROOT_ENV), extra="ignore")
 
     anthropic_api_key: str = ""
     model: str = "claude-sonnet-4-6"

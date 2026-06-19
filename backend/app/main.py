@@ -32,7 +32,7 @@ _CLIENT = None
 def get_client():
     global _CLIENT
     if _CLIENT is None:
-        _CLIENT = anthropic.Anthropic(max_retries=0)
+        _CLIENT = anthropic.Anthropic(api_key=settings.anthropic_api_key or None, max_retries=0)
     return _CLIENT
 
 
