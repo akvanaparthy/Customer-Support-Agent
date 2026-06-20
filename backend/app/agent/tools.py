@@ -123,9 +123,13 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         o, err = _get_owned_order(ctx, tool_input.get("order_id"))
         if err:
             return err
+        category = tool_input.get("reason_category")
         prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
-        d = evaluate_refund(o, ctx.customer_id, ctx.today,
-                            reason_category=tool_input.get("reason_category"), prior_refund_count=prior)
+        prior_denied = crm.prior_denied_categories(ctx.conn, o["id"])
+        d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category,
+                            prior_refund_count=prior, prior_denied_categories=prior_denied)
+        if category:
+            crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
         badge = _BADGE[d.decision] if d.decision != "APPROVE" else None
         return ToolResult(
             json.dumps({"decision": d.decision, "reasons": d.reasons, "matched_rules": d.matched_rules}),
@@ -145,7 +149,10 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
                 is_error=True,
             )
         prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
-        d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category, prior_refund_count=prior)
+        prior_denied = crm.prior_denied_categories(ctx.conn, o["id"])
+        d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category,
+                            prior_refund_count=prior, prior_denied_categories=prior_denied)
+        crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
         if d.decision != "APPROVE":
             crm.record_refund(ctx.conn, o["id"], o["amount"], _BADGE[d.decision],
                               f"[{category}] {reason} | " + "; ".join(d.reasons), now_iso())

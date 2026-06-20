@@ -32,6 +32,14 @@ CREATE TABLE IF NOT EXISTS refunds (
     reason TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS claims (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id),
+    customer_id INTEGER NOT NULL,
+    reason_category TEXT,
+    decision TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS traces (
     trace_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,

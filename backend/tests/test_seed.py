@@ -23,3 +23,10 @@ def test_seed_is_idempotent(tmp_path):
     ensure_seeded(db)
     conn = connect(db)
     assert conn.execute("SELECT COUNT(*) AS c FROM customers").fetchone()["c"] == 15
+
+
+def test_claims_table_exists(tmp_path):
+    db = str(tmp_path / "crm.db")
+    ensure_seeded(db)
+    conn = connect(db)
+    conn.execute("SELECT COUNT(*) FROM claims")  # raises if the table is missing

@@ -2,6 +2,7 @@ import json
 from datetime import date
 
 from app.agent.tools import execute_tool, ToolContext
+from app.data import crm
 
 
 def _ctx(conn, customer_id):
@@ -66,3 +67,14 @@ def test_check_eligibility_denies_final_sale(seeded_conn):
 def test_unknown_order_is_error(seeded_conn):
     res = execute_tool("get_order", {"order_id": 999999}, _ctx(seeded_conn, 1))
     assert res.is_error is True
+
+
+def test_reason_shopping_escalates_via_tool(seeded_conn):
+    # 1001 is clean & in-window (defective would normally APPROVE), but it was denied
+    # earlier under changed_mind -> the re-claim under a new reason must escalate (R11).
+    crm.log_claim(seeded_conn, 1001, 1, "changed_mind", "denied", "2026-06-19T00:00:00Z")
+    res = execute_tool("check_refund_eligibility", {"order_id": 1001, "reason_category": "defective"}, _ctx(seeded_conn, 1))
+    payload = json.loads(res.content)
+    assert payload["decision"] == "ESCALATE"
+    assert "R11_reason_shopping" in payload["matched_rules"]
+    assert res.decision == "escalated"

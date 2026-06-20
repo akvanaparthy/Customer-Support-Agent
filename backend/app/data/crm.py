@@ -57,6 +57,25 @@ def count_prior_refunds(conn, customer_id: int) -> int:
     return row["c"]
 
 
+def log_claim(conn, order_id: int, customer_id: int, reason_category, decision: str, created_at: str) -> None:
+    """Record a refund claim attempt (reason + outcome) — the per-order history that
+    survives across chat sessions and powers reason-shopping detection (R11)."""
+    conn.execute(
+        "INSERT INTO claims (order_id, customer_id, reason_category, decision, created_at) VALUES (?, ?, ?, ?, ?)",
+        (order_id, customer_id, reason_category, decision, created_at),
+    )
+    conn.commit()
+
+
+def prior_denied_categories(conn, order_id: int) -> set[str]:
+    """Reason categories this order was previously DENIED under (any session)."""
+    rows = conn.execute(
+        "SELECT DISTINCT reason_category FROM claims WHERE order_id = ? AND decision = 'denied' AND reason_category IS NOT NULL",
+        (order_id,),
+    ).fetchall()
+    return {r["reason_category"] for r in rows}
+
+
 ALLOWED_ORDER_STATUSES = {"processing", "shipped", "delivered", "cancelled"}
 
 

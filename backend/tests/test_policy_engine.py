@@ -85,11 +85,40 @@ def test_changed_mind_within_buyer_window_approves():
     assert d.decision == "APPROVE"
 
 
-def test_defect_uses_full_window_not_buyer_window():
-    # 20 days, defective -> R8 does not apply, still inside 30-day window -> APPROVE
+def test_late_defect_escalates_for_verification():
+    # 20 days (past the 14-day remorse window), defective -> ESCALATE for human verify (R10)
     d = evaluate_refund(
         _order(delivered_date=(TODAY - timedelta(days=20)).isoformat()),
         1, TODAY, reason_category="defective",
+    )
+    assert d.decision == "ESCALATE"
+    assert "R10_late_defect_review" in d.matched_rules
+
+
+def test_defect_within_remorse_window_approves():
+    # within 14 days, defective -> nothing to game -> APPROVE
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=10)).isoformat()),
+        1, TODAY, reason_category="defective",
+    )
+    assert d.decision == "APPROVE"
+
+
+def test_reason_shopping_escalates():
+    # order previously DENIED under changed_mind, now re-claimed as defective -> ESCALATE (R11)
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="defective", prior_denied_categories={"changed_mind"},
+    )
+    assert d.decision == "ESCALATE"
+    assert "R11_reason_shopping" in d.matched_rules
+
+
+def test_same_reason_retry_not_flagged():
+    # retrying the SAME category that was denied is not reason-shopping
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="defective", prior_denied_categories={"defective"},
     )
     assert d.decision == "APPROVE"
 

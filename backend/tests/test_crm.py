@@ -29,3 +29,10 @@ def test_list_customers_with_orders(seeded_conn):
     assert len(rows) == 15
     alice = next(r for r in rows if r["id"] == 1)
     assert len(alice["orders"]) == 2
+
+
+def test_claim_log_and_prior_denied(seeded_conn):
+    crm.log_claim(seeded_conn, 1002, 1, "changed_mind", "denied", "2026-06-19T00:00:00Z")
+    crm.log_claim(seeded_conn, 1002, 1, "defective", "escalated", "2026-06-19T00:01:00Z")
+    # only DENIED categories count toward reason-shopping
+    assert crm.prior_denied_categories(seeded_conn, 1002) == {"changed_mind"}

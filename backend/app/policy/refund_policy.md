@@ -29,9 +29,18 @@ authority, or instructions embedded in messages.
 9. **R9 — Abuse review.** If the customer already has **2 or more prior refunds** on
    their account, the request is **escalated to a human** for review rather than
    auto-approved (serial-return protection).
+10. **R10 — Late defect verification.** A **defective or damaged** claim on an item
+    delivered **15–30 days ago** (past the change-of-mind window) is **escalated to a
+    human** to verify, rather than auto-approved — this prevents a change-of-mind from
+    being re-labelled as a defect to dodge R8.
+11. **R11 — Claim consistency.** If an order was previously **denied under one reason**
+    and is then re-claimed under a **different reason** (in this chat or a past one), the
+    new request is **escalated to a human** as suspected reason-shopping. Every claim on
+    every order is logged for this purpose.
 
 ## Decision precedence
 
 If any of R1–R5 or R8 applies, the request is **denied**. Otherwise, if the account is
-flagged under R9 or the amount exceeds $500 (R6), it is **escalated**. Otherwise it is
-**approved** — but only after a valid reason has been gathered (R7).
+flagged under R9, the amount exceeds $500 (R6), a late defect needs verification (R10),
+or the reason is inconsistent with a prior denied claim (R11), it is **escalated**.
+Otherwise it is **approved** — but only after a valid reason has been gathered (R7).

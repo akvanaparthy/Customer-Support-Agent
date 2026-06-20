@@ -3,6 +3,10 @@ from datetime import date
 
 from app.config import settings
 
+# Physical-condition claims that can't be verified remotely and would otherwise
+# let a change-of-mind bypass the 14-day window by re-labelling.
+LATE_VERIFY_CATEGORIES = {"defective", "damaged"}
+
 
 @dataclass
 class PolicyDecision:
@@ -17,6 +21,7 @@ def evaluate_refund(
     today: date,
     reason_category: str | None = None,
     prior_refund_count: int = 0,
+    prior_denied_categories=(),
 ) -> PolicyDecision:
     reasons: list[str] = []
     matched: list[str] = []
@@ -73,6 +78,25 @@ def evaluate_refund(
         escalate_rules.append("R6_over_threshold")
         escalate_reasons.append(
             f"Amount ${order['amount']:.2f} exceeds ${settings.escalation_threshold:.0f}; requires human approval."
+        )
+
+    # R10 — defect/damage claims past the change-of-mind window can't be verified
+    # remotely; a human checks before paying (closes the 'just say defective' bypass of R8).
+    if (reason_category in LATE_VERIFY_CATEGORIES and days is not None
+            and settings.buyer_remorse_window_days < days <= settings.refund_window_days):
+        escalate_rules.append("R10_late_defect_review")
+        escalate_reasons.append(
+            f"{reason_category.capitalize()} claim on an item delivered {days} days ago (past the "
+            f"{settings.buyer_remorse_window_days}-day change-of-mind window) requires human verification."
+        )
+
+    # R11 — reason shopping: this order was already denied under a different reason.
+    shopped = sorted(c for c in prior_denied_categories if c and c != reason_category)
+    if reason_category and shopped:
+        escalate_rules.append("R11_reason_shopping")
+        escalate_reasons.append(
+            f"This order was previously denied under a different reason ({', '.join(shopped)}); "
+            f"a changed reason ('{reason_category}') is flagged for human review."
         )
 
     if escalate_rules:
