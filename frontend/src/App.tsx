@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
-import ChatWindow from "./components/ChatWindow";
+import StorefrontView from "./components/StorefrontView";
 import AdminDashboard from "./components/AdminDashboard";
 import OrdersAdmin from "./components/OrdersAdmin";
 import type { Customer, Decision } from "./types";
@@ -8,7 +8,7 @@ import type { Customer, Decision } from "./types";
 type Tab = "chat" | "admin" | "orders";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "chat", label: "Chat" },
+  { id: "chat", label: "Storefront" },
   { id: "admin", label: "Reasoning" },
   { id: "orders", label: "Orders" },
 ];
@@ -77,7 +77,7 @@ export default function App() {
       <main className="min-h-0 flex-1">
         <div key={tab} className="h-full animate-fade-in">
           {tab === "chat" && (
-            <ChatWindow
+            <StorefrontView
               customers={customers}
               sessionId={sessionId}
               onViewTrace={viewTrace}
