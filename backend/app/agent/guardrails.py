@@ -54,3 +54,39 @@ def validate_output(text: str, refund_approved: bool) -> tuple[bool, str]:
             "what went wrong, I'll check exactly what I'm able to do."
         )
     return True, text
+
+
+# --- Customer-facing confidentiality scrub -----------------------------------
+# Customers must never see internal rule identifiers, the policy document, or the
+# system prompt. This is the deterministic backstop to the prompt instruction.
+_PROMPT_SIGNATURES = [
+    "understand the issue first", "rubber stamp", "rules of engagement",
+    "source of truth", "follow these steps in order", "<refund_policy>",
+]
+_RULE_ID_PATTERNS = [
+    (re.compile(r"\b[Rr]ule\s+R\d+\w*"), "our policy"),
+    (re.compile(r"\bpolic(?:y|ies)\s+R\d+\w*", re.IGNORECASE), "our policy"),
+    (re.compile(r"\(\s*R\d+[^)]*\)"), ""),
+    (re.compile(r"\bR\d+_[a-z_]+\b"), ""),
+    (re.compile(r"\bR\d+\b"), "our policy"),
+]
+_GENERIC_CONFIDENTIAL = (
+    "I'm not able to share our internal policies or instructions. I'm here to help "
+    "with your order, though - what can I do for you?"
+)
+
+
+def sanitize_output(text: str) -> tuple[str, bool]:
+    """Strip internal rule IDs / policy-prompt leakage from a customer-facing reply.
+
+    Returns (cleaned_text, was_scrubbed). If the reply appears to leak the system
+    prompt verbatim, the whole reply is replaced with a generic refusal.
+    """
+    low = text.lower()
+    if any(sig in low for sig in _PROMPT_SIGNATURES):
+        return _GENERIC_CONFIDENTIAL, True
+    cleaned = text
+    for pat, repl in _RULE_ID_PATTERNS:
+        cleaned = pat.sub(repl, cleaned)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    return cleaned, cleaned != text

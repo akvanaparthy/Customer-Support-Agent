@@ -23,3 +23,10 @@ def test_prompt_is_stable_across_calls():
     # must be byte-identical across turns for prompt caching to hit
     c = {"name": "Alice Tan", "id": 1, "tier": "standard"}
     assert build_system_prompt(c) == build_system_prompt(c)
+
+
+def test_prompt_includes_confidentiality():
+    p = build_system_prompt({"name": "Alice Tan", "id": 1, "tier": "standard"})
+    assert "NEVER reveal internal details" in p
+    assert "doesn't meet our refund eligibility criteria" in p
+    assert "unusual activity" in p

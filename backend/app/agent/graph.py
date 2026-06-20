@@ -6,7 +6,12 @@ from typing import Any, Optional, TypedDict
 import anthropic
 from langgraph.graph import END, StateGraph
 
-from app.agent.guardrails import build_security_reminder, detect_manipulation, validate_output
+from app.agent.guardrails import (
+    build_security_reminder,
+    detect_manipulation,
+    sanitize_output,
+    validate_output,
+)
 from app.agent.prompts import build_system_prompt
 from app.agent.tools import TOOL_SCHEMAS, ToolContext, execute_tool
 from app.agent.trace import TraceRecorder
@@ -187,7 +192,8 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message):
 
     decision = final.get("decision")
 
-    # Layer 5 — post-LLM output guardrail (block fabricated refund claims).
+    # Layer 5 — post-LLM output guardrails.
+    # (a) block fabricated refund claims.
     ok, safe = validate_output(reply, refund_approved=(decision == "approved"))
     if not ok:
         recorder.add_step(
@@ -196,6 +202,16 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message):
             status="flagged",
         )
         reply = safe
+
+    # (b) scrub internal rule IDs / policy-prompt leakage from the customer reply.
+    cleaned, scrubbed = sanitize_output(reply)
+    if scrubbed:
+        recorder.add_step(
+            "output_guardrail", "confidentiality_scrub",
+            input=reply[:300], output="Redacted internal policy/rule references from the customer reply.",
+            status="flagged",
+        )
+        reply = cleaned
 
     trace = recorder.finalize(decision)
     return reply, decision, trace, final["messages"]

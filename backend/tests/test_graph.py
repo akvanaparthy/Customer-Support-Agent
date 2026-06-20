@@ -50,3 +50,17 @@ def test_graph_runs_tool_then_finishes(seeded_conn):
     assert [s.type for s in trace.steps] == ["input_guardrail", "llm_call", "tool_call", "llm_call"]
     assert trace.total_tokens_in == 2500
     assert trace.step_count == 4
+
+
+def test_output_scrubs_rule_ids(seeded_conn):
+    responses = [
+        FakeResp([_text("Sorry, this is denied under Rule R3 (final sale item).")], "end_turn", FakeUsage(100, 20)),
+    ]
+    graph = build_graph()
+    customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
+    reply, decision, trace, messages = run_turn(
+        graph, FakeClient(responses), seeded_conn, "scrub", customer, [], "refund order 1002 please"
+    )
+    assert "R3" not in reply
+    assert "Rule R" not in reply
+    assert any(s.type == "output_guardrail" and s.name == "confidentiality_scrub" for s in trace.steps)
