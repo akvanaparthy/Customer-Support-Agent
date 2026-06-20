@@ -12,11 +12,12 @@ from app.data import crm
 from app.data.db import connect
 from app.data.seed import ensure_seeded
 from app.models import ChatRequest, ChatResponse, OrderUpdate
-from app.observability import log_event, setup_logging
+from app.observability import log_event, setup_logging, setup_otel
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    setup_otel()
     ensure_seeded(settings.db_path)
     yield
 

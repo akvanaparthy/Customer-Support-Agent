@@ -4,8 +4,12 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - MODEL=${MODEL:-claude-sonnet-4-6}
+      - OTEL_ENABLED=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318
     ports:
       - "8000:8000"
+    depends_on:
+      - jaeger
   frontend:
     build: ./frontend
     environment:
@@ -14,3 +18,10 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI — the OpenTelemetry trace waterfall
+      - "4318:4318"     # OTLP/HTTP span receiver
