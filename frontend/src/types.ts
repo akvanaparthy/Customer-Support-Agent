@@ -23,6 +23,7 @@ export type Decision = "approved" | "denied" | "escalated" | null;
 export interface ChatResponse {
   reply: string;
   decision: Decision;
+  options?: string[] | null;
   trace_id: string;
   session_id: string;
 }

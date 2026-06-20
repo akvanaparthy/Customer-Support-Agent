@@ -62,6 +62,7 @@ class AgentState(TypedDict):
     recorder: TraceRecorder
     decision: Optional[str]
     system: str
+    pending_prompt: Optional[dict]
 
 
 def _has_tool_use(content) -> bool:
@@ -123,6 +124,7 @@ def tools_node(state: AgentState):
     ctx = ToolContext(conn=state["conn"], customer_id=state["customer"]["id"], today=state["today"])
     recorder = state["recorder"]
     decision = state.get("decision")
+    pending = state.get("pending_prompt")
     results = []
     for block in last:
         if getattr(block, "type", None) != "tool_use":
@@ -136,14 +138,21 @@ def tools_node(state: AgentState):
         )
         if res.decision:
             decision = res.decision
+        if res.prompt:
+            pending = res.prompt
         results.append({"type": "tool_result", "tool_use_id": block.id,
                         "content": res.content, "is_error": res.is_error})
     state["messages"].append({"role": "user", "content": results})
-    return {"messages": state["messages"], "decision": decision}
+    return {"messages": state["messages"], "decision": decision, "pending_prompt": pending}
 
 
 def _should_continue(state: AgentState):
     return "tools" if _has_tool_use(state["messages"][-1]["content"]) else "end"
+
+
+def _after_tools(state: AgentState):
+    # ask_user pauses the turn so the UI can collect a bounded choice from the customer.
+    return "end" if state.get("pending_prompt") else "agent"
 
 
 def build_graph():
@@ -152,7 +161,7 @@ def build_graph():
     b.add_node("tools", tools_node)
     b.set_entry_point("agent")
     b.add_conditional_edges("agent", _should_continue, {"tools": "tools", "end": END})
-    b.add_edge("tools", "agent")
+    b.add_conditional_edges("tools", _after_tools, {"agent": "agent", "end": END})
     return b.compile()
 
 
@@ -178,7 +187,7 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
     state: AgentState = {
         "messages": messages, "client": client, "conn": conn, "customer": customer,
         "today": date.today(), "recorder": recorder, "decision": None,
-        "system": build_system_prompt(customer, tickets),
+        "system": build_system_prompt(customer, tickets), "pending_prompt": None,
     }
     final = graph.invoke(state)
 
@@ -191,6 +200,10 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
             break
 
     decision = final.get("decision")
+    pending = final.get("pending_prompt")
+    options = pending["options"] if pending else None
+    if pending and not reply.strip():
+        reply = pending.get("question", "")
 
     # Layer 5 — post-LLM output guardrails.
     # (a) block fabricated refund claims.
@@ -214,4 +227,4 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
         reply = cleaned
 
     trace = recorder.finalize(decision)
-    return reply, decision, trace, final["messages"]
+    return reply, decision, options, trace, final["messages"]

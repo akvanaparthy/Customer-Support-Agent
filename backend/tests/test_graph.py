@@ -43,7 +43,7 @@ def test_graph_runs_tool_then_finishes(seeded_conn):
     ]
     graph = build_graph()
     customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
-    reply, decision, trace, messages = run_turn(
+    reply, decision, options, trace, messages = run_turn(
         graph, FakeClient(responses), seeded_conn, "sess-1", customer, [], "where is order 1001?"
     )
     assert "1001" in reply
@@ -58,9 +58,28 @@ def test_output_scrubs_rule_ids(seeded_conn):
     ]
     graph = build_graph()
     customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
-    reply, decision, trace, messages = run_turn(
+    reply, decision, options, trace, messages = run_turn(
         graph, FakeClient(responses), seeded_conn, "scrub", customer, [], "refund order 1002 please"
     )
     assert "R3" not in reply
     assert "Rule R" not in reply
     assert any(s.type == "output_guardrail" and s.name == "confidentiality_scrub" for s in trace.steps)
+
+
+def test_ask_user_ends_turn_with_options(seeded_conn):
+    responses = [
+        FakeResp(
+            [_text("Sure — which order is this about?"),
+             _tool("tu1", "ask_user", {"question": "Which order?", "options": ["#1001 — Earbuds", "#1002 — Hoodie"]})],
+            "tool_use", FakeUsage(900, 25),
+        ),
+    ]
+    graph = build_graph()
+    customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
+    reply, decision, options, trace, messages = run_turn(
+        graph, FakeClient(responses), seeded_conn, "pick", customer, [], "I have a problem with an order"
+    )
+    # the turn pauses at the picker without a second LLM round (only one FakeResp provided)
+    assert options == ["#1001 — Earbuds", "#1002 — Hoodie"]
+    assert "order" in reply.lower()
+    assert [s.type for s in trace.steps] == ["input_guardrail", "llm_call", "tool_call"]

@@ -18,6 +18,7 @@ export interface ChatMsg {
   text: string;
   decision?: Decision;
   traceId?: string;
+  options?: string[];
 }
 
 export default function App() {

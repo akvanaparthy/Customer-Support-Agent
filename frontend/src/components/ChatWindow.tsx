@@ -53,6 +53,10 @@ export default function ChatWindow({
   }, [messages, busy]);
 
   const current = customers.find((c) => c.id === customerId);
+  // when the latest agent turn offers options, lock free text — the customer must choose
+  const lastMsg = messages[messages.length - 1];
+  const pendingOptions = lastMsg?.role === "agent" ? lastMsg.options : undefined;
+  const locked = !!pendingOptions?.length;
 
   async function send(text?: string) {
     const msg = (text ?? input).trim();
@@ -62,7 +66,10 @@ export default function ChatWindow({
     setBusy(true);
     try {
       const res = await api.chat(sessionId, customerId, msg);
-      setMessages((m) => [...m, { role: "agent", text: res.reply, decision: res.decision, traceId: res.trace_id }]);
+      setMessages((m) => [
+        ...m,
+        { role: "agent", text: res.reply, decision: res.decision, traceId: res.trace_id, options: res.options ?? undefined },
+      ]);
     } catch (e) {
       setMessages((m) => [...m, { role: "agent", text: `I couldn't reach the support agent just now. ${String(e)}` }]);
     } finally {
@@ -170,6 +177,20 @@ export default function ChatWindow({
                     )}
                   </div>
                 )}
+                {m.role === "agent" && m.options && i === messages.length - 1 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {m.options.map((opt) => (
+                      <button
+                        key={opt}
+                        onClick={() => send(opt)}
+                        disabled={busy}
+                        className="rounded-xl border border-agent/30 bg-agent-soft px-3 py-2 text-xs font-medium text-agent transition hover:-translate-y-0.5 hover:bg-agent hover:text-white disabled:opacity-50"
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -189,16 +210,22 @@ export default function ChatWindow({
       <div className="py-4">
         <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface p-1.5 shadow-sm transition focus-within:border-agent focus-within:ring-4 focus-within:ring-agent/10">
           <input
-            className="flex-1 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none"
-            placeholder={current ? `Message support as ${current.name.split(" ")[0]}…` : "Message the support agent…"}
+            className="flex-1 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none disabled:cursor-not-allowed"
+            placeholder={
+              locked
+                ? "Choose an option above to continue…"
+                : current
+                ? `Message support as ${current.name.split(" ")[0]}…`
+                : "Message the support agent…"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            disabled={customerId === null}
+            disabled={customerId === null || locked}
           />
           <button
             onClick={() => send()}
-            disabled={busy || !input.trim()}
+            disabled={busy || locked || !input.trim()}
             className="flex h-9 w-9 items-center justify-center rounded-xl bg-agent text-white transition hover:bg-agent-hover disabled:opacity-40"
             aria-label="Send message"
           >

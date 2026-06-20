@@ -97,13 +97,14 @@ def chat(req: ChatRequest):
                 "messages": [],
                 "tickets": crm.get_customer_tickets(conn, req.customer_id),
             }
-        reply, decision, trace, messages = run_turn(
+        reply, decision, options, trace, messages = run_turn(
             _GRAPH, get_client(), conn, req.session_id, customer, session["messages"], req.message,
             tickets=session["tickets"],
         )
         session["messages"] = messages
         save_trace(conn, trace)
-        return ChatResponse(reply=reply, decision=decision, trace_id=trace.trace_id, session_id=req.session_id)
+        return ChatResponse(reply=reply, decision=decision, options=options,
+                            trace_id=trace.trace_id, session_id=req.session_id)
     finally:
         conn.close()
 

@@ -19,7 +19,7 @@ def _run(conn, customer, turns):
     graph = build_graph()
     history = []
     for msg in turns:
-        _reply, _decision, _trace, history = run_turn(
+        _reply, _decision, _options, _trace, history = run_turn(
             graph, client, conn, "rsess", customer, history, msg
         )
 

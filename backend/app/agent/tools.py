@@ -25,6 +25,7 @@ class ToolResult:
     content: str
     is_error: bool = False
     decision: str | None = None
+    prompt: dict | None = None  # {question, options} -> ends the turn, UI shows buttons
 
 
 def _order_view(o: dict) -> dict:
@@ -92,6 +93,19 @@ TOOL_SCHEMAS = [
                 "reason": {"type": "string", "description": "Why this is being escalated."},
             },
             "required": ["order_id", "reason"], "additionalProperties": False,
+        },
+    },
+    {
+        "name": "ask_user",
+        "description": "Ask the customer to pick from a fixed set of options instead of typing. The UI shows buttons and locks free-text input until they choose. Use for bounded choices — which order they mean, or what the issue is.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "question": {"type": "string", "description": "Short question shown above the options."},
+                "options": {"type": "array", "items": {"type": "string"},
+                            "description": "2-8 short choices to show as buttons."},
+            },
+            "required": ["question", "options"], "additionalProperties": False,
         },
     },
 ]
@@ -180,6 +194,14 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
             json.dumps({"escalated": True, "ticket_id": ticket,
                         "message": f"Escalated order #{o['id']} to a human agent. Ticket {ticket}."}),
             decision="escalated",
+        )
+
+    if name == "ask_user":
+        question = tool_input.get("question") or "Please choose an option:"
+        options = [str(o) for o in (tool_input.get("options") or [])]
+        return ToolResult(
+            json.dumps({"presented": True, "question": question, "options": options}),
+            prompt={"question": question, "options": options},
         )
 
     return ToolResult(f"Unknown tool: {name}", is_error=True)

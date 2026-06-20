@@ -57,6 +57,7 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     decision: Optional[str] = None
+    options: Optional[list[str]] = None  # if set, UI shows buttons and locks free text
     trace_id: str
     session_id: str
 

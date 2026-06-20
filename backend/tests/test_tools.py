@@ -9,6 +9,12 @@ def _ctx(conn, customer_id):
     return ToolContext(conn=conn, customer_id=customer_id, today=date.today())
 
 
+def test_ask_user_returns_prompt(seeded_conn):
+    res = execute_tool("ask_user", {"question": "Which order?", "options": ["#1001", "#1002"]}, _ctx(seeded_conn, 1))
+    assert res.prompt == {"question": "Which order?", "options": ["#1001", "#1002"]}
+    assert res.is_error is False
+
+
 def test_issue_refund_requires_reason(seeded_conn):
     # R7: no reason/category -> refused, nothing recorded
     res = execute_tool("issue_refund", {"order_id": 1001}, _ctx(seeded_conn, 1))
