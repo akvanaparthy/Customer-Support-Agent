@@ -22,7 +22,7 @@ def test_policy_and_customers(tmp_path):
 
 
 def test_chat_persists_trace(tmp_path, monkeypatch):
-    def fake_run_turn(graph, client, conn, session_id, customer, history, message):
+    def fake_run_turn(graph, client, conn, session_id, customer, history, message, tickets=()):
         rec = TraceRecorder(session_id, customer["id"], customer["name"], message)
         rec.add_step("llm_call", "claude", output="ok", tokens_in=100, tokens_out=20, latency_ms=10)
         return "Refund approved.", "approved", rec.finalize("approved"), history + [{"role": "user", "content": message}]

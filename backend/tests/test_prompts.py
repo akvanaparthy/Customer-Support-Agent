@@ -30,3 +30,17 @@ def test_prompt_includes_confidentiality():
     assert "NEVER reveal internal details" in p
     assert "doesn't meet our refund eligibility criteria" in p
     assert "unusual activity" in p
+
+
+def test_prompt_includes_previous_tickets():
+    tickets = [{"order_id": 1002, "item_name": "Clearance Hoodie",
+                "reason_category": "changed_mind", "decision": "denied", "created_at": "2026-06-15T00:00:00Z"}]
+    p = build_system_prompt({"name": "Alice Tan", "id": 1, "tier": "standard"}, tickets)
+    assert "<previous_tickets>" in p
+    assert "Order #1002" in p
+    assert "denied" in p
+
+
+def test_prompt_no_tickets_block_when_empty():
+    p = build_system_prompt({"name": "Alice Tan", "id": 1, "tier": "standard"})
+    assert "previous_tickets" not in p

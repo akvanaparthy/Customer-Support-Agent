@@ -76,6 +76,21 @@ def prior_denied_categories(conn, order_id: int) -> set[str]:
     return {r["reason_category"] for r in rows}
 
 
+def get_customer_tickets(conn, customer_id: int, limit: int = 8) -> list[dict]:
+    """Compact history for a customer: the latest claim outcome per order they've
+    contacted support about. Injected (cheaply) into new chats instead of transcripts."""
+    rows = conn.execute(
+        """SELECT c.order_id, c.reason_category, c.decision, MAX(c.created_at) AS created_at, o.item_name
+           FROM claims c JOIN orders o ON o.id = c.order_id
+           WHERE c.customer_id = ?
+           GROUP BY c.order_id
+           ORDER BY created_at DESC
+           LIMIT ?""",
+        (customer_id, limit),
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
 ALLOWED_ORDER_STATUSES = {"processing", "shipped", "delivered", "cancelled"}
 
 

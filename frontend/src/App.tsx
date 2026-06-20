@@ -24,7 +24,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>("chat");
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [focusTraceId, setFocusTraceId] = useState<string | null>(null);
-  const [sessionId] = useState(() => crypto.randomUUID());
+  const [sessionId, setSessionId] = useState(() => crypto.randomUUID());
   // chat state lives here so switching tabs never drops the conversation
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [chatCustomerId, setChatCustomerId] = useState<number | null>(null);
@@ -36,6 +36,12 @@ export default function App() {
   function viewTrace(id: string) {
     setFocusTraceId(id);
     setTab("admin");
+  }
+
+  // a new chat = a fresh backend session (so it doesn't inherit the prior transcript)
+  function newChat() {
+    setSessionId(crypto.randomUUID());
+    setChatMessages([]);
   }
 
   return (
@@ -74,6 +80,7 @@ export default function App() {
               customers={customers}
               sessionId={sessionId}
               onViewTrace={viewTrace}
+              onNewChat={newChat}
               messages={chatMessages}
               setMessages={setChatMessages}
               customerId={chatCustomerId}

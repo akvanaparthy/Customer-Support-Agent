@@ -88,9 +88,18 @@ def chat(req: ChatRequest):
         customer = crm.get_customer(conn, req.customer_id)
         if customer is None:
             raise HTTPException(status_code=404, detail="Unknown customer")
-        session = SESSIONS.setdefault(req.session_id, {"customer_id": req.customer_id, "messages": []})
+        session = SESSIONS.get(req.session_id)
+        if session is None:
+            # New chat: snapshot the customer's prior tickets once (stays cache-stable
+            # for the whole chat; this chat's own messages provide in-conversation context).
+            session = SESSIONS[req.session_id] = {
+                "customer_id": req.customer_id,
+                "messages": [],
+                "tickets": crm.get_customer_tickets(conn, req.customer_id),
+            }
         reply, decision, trace, messages = run_turn(
-            _GRAPH, get_client(), conn, req.session_id, customer, session["messages"], req.message
+            _GRAPH, get_client(), conn, req.session_id, customer, session["messages"], req.message,
+            tickets=session["tickets"],
         )
         session["messages"] = messages
         save_trace(conn, trace)

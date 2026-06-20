@@ -156,7 +156,7 @@ def build_graph():
     return b.compile()
 
 
-def run_turn(graph, client, conn, session_id, customer, history, user_message):
+def run_turn(graph, client, conn, session_id, customer, history, user_message, tickets=()):
     recorder = TraceRecorder(session_id, customer["id"], customer["name"], user_message)
 
     # Layer 1 — pre-LLM input guardrail (deterministic manipulation scan).
@@ -178,7 +178,7 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message):
     state: AgentState = {
         "messages": messages, "client": client, "conn": conn, "customer": customer,
         "today": date.today(), "recorder": recorder, "decision": None,
-        "system": build_system_prompt(customer),
+        "system": build_system_prompt(customer, tickets),
     }
     final = graph.invoke(state)
 

@@ -25,6 +25,7 @@ export default function ChatWindow({
   customers,
   sessionId,
   onViewTrace,
+  onNewChat,
   messages,
   setMessages,
   customerId,
@@ -33,6 +34,7 @@ export default function ChatWindow({
   customers: Customer[];
   sessionId: string;
   onViewTrace: (traceId: string) => void;
+  onNewChat: () => void;
   messages: ChatMsg[];
   setMessages: Dispatch<SetStateAction<ChatMsg[]>>;
   customerId: number | null;
@@ -82,7 +84,7 @@ export default function ChatWindow({
             value={customerId ?? ""}
             onChange={(e) => {
               setCustomerId(Number(e.target.value));
-              setMessages([]);
+              onNewChat();
             }}
           >
             {customers.map((c) => (
@@ -97,6 +99,15 @@ export default function ChatWindow({
             {current.tier}
           </span>
         )}
+        <button
+          onClick={() => onNewChat()}
+          className="flex items-center gap-1 rounded-lg border border-line px-2.5 py-1.5 text-xs font-medium text-muted transition hover:border-agent hover:text-agent"
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New chat
+        </button>
       </div>
 
       {/* conversation */}

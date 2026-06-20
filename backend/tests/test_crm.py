@@ -36,3 +36,12 @@ def test_claim_log_and_prior_denied(seeded_conn):
     crm.log_claim(seeded_conn, 1002, 1, "defective", "escalated", "2026-06-19T00:01:00Z")
     # only DENIED categories count toward reason-shopping
     assert crm.prior_denied_categories(seeded_conn, 1002) == {"changed_mind"}
+
+
+def test_customer_tickets(seeded_conn):
+    crm.log_claim(seeded_conn, 1002, 1, "changed_mind", "denied", "2026-06-15T00:00:00Z")
+    crm.log_claim(seeded_conn, 1001, 1, "defective", "approved", "2026-06-16T00:00:00Z")
+    tickets = crm.get_customer_tickets(seeded_conn, 1)
+    assert [t["order_id"] for t in tickets] == [1001, 1002]  # one per order, latest first
+    t1001 = next(t for t in tickets if t["order_id"] == 1001)
+    assert t1001["decision"] == "approved" and t1001["item_name"] == "Wireless Earbuds"
