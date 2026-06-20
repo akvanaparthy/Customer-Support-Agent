@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type Dispatch, type SetStateAction } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { api } from "../api";
@@ -10,6 +10,32 @@ const badge: Record<string, string> = {
   denied: "bg-denied-soft text-denied",
   escalated: "bg-escalated-soft text-escalated",
 };
+
+// downscale to keep the base64 payload (and vision token cost) reasonable
+function fileToResizedDataUrl(file: File, maxDim = 1024): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("no canvas context"));
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("could not read image"));
+    };
+    img.src = url;
+  });
+}
 
 export default function ChatWindow({
   customers,
@@ -38,32 +64,53 @@ export default function ChatWindow({
   const [busy, setBusy] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentSeed = useRef<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const current = customers.find((c) => c.id === customerId);
   const lastMsg = messages[messages.length - 1];
   const pendingOptions = lastMsg?.role === "agent" ? lastMsg.options : undefined;
-  const locked = !!pendingOptions?.length;
+  const awaitingPhoto = lastMsg?.role === "agent" ? !!lastMsg.awaiting_photo : false;
+  const locked = !!pendingOptions?.length || awaitingPhoto;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
-  async function send(text?: string) {
+  async function send(text?: string, image?: string) {
     const msg = (text ?? input).trim();
-    if (!msg || customerId === null || busy) return;
+    if ((!msg && !image) || customerId === null || busy) return;
     setInput("");
-    setMessages((m) => [...m, { role: "user", text: msg }]);
+    setMessages((m) => [...m, { role: "user", text: msg || "Photo attached", image }]);
     setBusy(true);
     try {
-      const res = await api.chat(sessionId, customerId, msg);
+      const res = await api.chat(sessionId, customerId, msg || "Here is the photo.", image);
       setMessages((m) => [
         ...m,
-        { role: "agent", text: res.reply, decision: res.decision, traceId: res.trace_id, options: res.options ?? undefined },
+        {
+          role: "agent",
+          text: res.reply,
+          decision: res.decision,
+          traceId: res.trace_id,
+          options: res.options ?? undefined,
+          awaiting_photo: res.awaiting_photo,
+        },
       ]);
     } catch (e) {
       setMessages((m) => [...m, { role: "agent", text: `I couldn't reach the support agent just now. ${String(e)}` }]);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPhoto(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || busy) return;
+    try {
+      const dataUrl = await fileToResizedDataUrl(file);
+      await send("Here's the photo you asked for.", dataUrl);
+    } catch {
+      setMessages((m) => [...m, { role: "agent", text: "I couldn't read that image — please try another photo." }]);
     }
   }
 
@@ -134,7 +181,10 @@ export default function ChatWindow({
           <div key={i} className={`flex animate-fade-up ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div className={m.role === "user" ? "max-w-[85%]" : "max-w-[92%]"}>
               {m.role === "user" ? (
-                <div className="rounded-2xl rounded-br-md bg-agent px-4 py-2.5 text-sm text-white shadow-sm">{m.text}</div>
+                <div className="rounded-2xl rounded-br-md bg-agent px-4 py-2.5 text-sm text-white shadow-sm">
+                  {m.image && <img src={m.image} alt="uploaded evidence" className="mb-2 max-h-44 rounded-lg" />}
+                  {m.text}
+                </div>
               ) : (
                 <div className="md rounded-2xl rounded-bl-md border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink shadow-sm">
                   <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.text}</ReactMarkdown>
@@ -175,6 +225,21 @@ export default function ChatWindow({
                   ))}
                 </div>
               )}
+              {m.role === "agent" && m.awaiting_photo && i === messages.length - 1 && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={busy}
+                    className="flex items-center gap-2 rounded-xl border border-agent/30 bg-agent-soft px-3.5 py-2 text-xs font-medium text-agent transition hover:-translate-y-0.5 hover:bg-agent hover:text-white disabled:opacity-50"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                    Upload a photo
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -190,12 +255,21 @@ export default function ChatWindow({
         )}
       </div>
 
+      {/* hidden photo input, triggered by the "Upload a photo" button */}
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPhoto} />
+
       {/* composer */}
       <div className="border-t border-line p-3">
         <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface p-1.5 transition focus-within:border-agent focus-within:ring-4 focus-within:ring-agent/10">
           <input
             className="flex-1 bg-transparent px-3 py-2 text-sm text-ink placeholder:text-muted focus:outline-none disabled:cursor-not-allowed"
-            placeholder={locked ? "Choose an option above to continue…" : "Message support…"}
+            placeholder={
+              awaitingPhoto
+                ? "Upload a photo above to continue…"
+                : locked
+                ? "Choose an option above to continue…"
+                : "Message support…"
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}

@@ -41,8 +41,20 @@ _REFUND_DONE = re.compile(
 )
 
 
+_REFUND_NEGATION = re.compile(
+    r"\b(can(?:no|')t|cannot|couldn'?t|won'?t|will not|unable|never|no|not|n't|"
+    r"isn'?t|wasn'?t|doesn'?t|don'?t|didn'?t|denied|declin|refus)\b",
+    re.IGNORECASE,
+)
+
+
 def claims_refund_completed(text: str) -> bool:
-    return bool(_REFUND_DONE.search(text))
+    m = _REFUND_DONE.search(text)
+    if not m:
+        return False
+    # ignore denials / negated phrasing like "a refund cannot be issued"
+    window = text[max(0, m.start() - 25): m.end()]
+    return not _REFUND_NEGATION.search(window)
 
 
 def validate_output(text: str, refund_approved: bool) -> tuple[bool, str]:

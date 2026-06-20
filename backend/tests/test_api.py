@@ -22,10 +22,10 @@ def test_policy_and_customers(tmp_path):
 
 
 def test_chat_persists_trace(tmp_path, monkeypatch):
-    def fake_run_turn(graph, client, conn, session_id, customer, history, message, tickets=()):
+    def fake_run_turn(graph, client, conn, session_id, customer, history, message, tickets=(), image=None, has_evidence=False):
         rec = TraceRecorder(session_id, customer["id"], customer["name"], message)
         rec.add_step("llm_call", "claude", output="ok", tokens_in=100, tokens_out=20, latency_ms=10)
-        return "Refund approved.", "approved", None, rec.finalize("approved"), history + [{"role": "user", "content": message}]
+        return "Refund approved.", "approved", None, False, rec.finalize("approved"), history + [{"role": "user", "content": message}]
 
     monkeypatch.setattr(main, "run_turn", fake_run_turn)
     c = _client(tmp_path)
@@ -37,7 +37,7 @@ def test_chat_persists_trace(tmp_path, monkeypatch):
 
 
 def test_chat_unknown_customer(tmp_path, monkeypatch):
-    monkeypatch.setattr(main, "run_turn", lambda *a, **k: ("", None, None, None, []))
+    monkeypatch.setattr(main, "run_turn", lambda *a, **k: ("", None, None, False, None, []))
     c = _client(tmp_path)
     assert c.post("/api/chat", json={"session_id": "s1", "customer_id": 999, "message": "hi"}).status_code == 404
 

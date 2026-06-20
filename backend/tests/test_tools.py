@@ -15,6 +15,34 @@ def test_ask_user_returns_prompt(seeded_conn):
     assert res.is_error is False
 
 
+def test_request_evidence_returns_prompt(seeded_conn):
+    res = execute_tool("request_evidence", {"message": "Upload a photo"}, _ctx(seeded_conn, 1))
+    assert res.prompt == {"question": "Upload a photo", "photo": True}
+
+
+def test_unverifiable_without_photo_escalates_via_tool(seeded_conn):
+    # wrong_item, ctx has no evidence -> escalate (R13), nothing refunded
+    res = execute_tool(
+        "issue_refund",
+        {"order_id": 1001, "reason": "got the wrong thing", "reason_category": "wrong_item"},
+        _ctx(seeded_conn, 1),
+    )
+    payload = json.loads(res.content)
+    assert payload["refunded"] is False
+    assert "R13_evidence_required" in payload["matched_rules"]
+    assert seeded_conn.execute("SELECT is_refunded FROM orders WHERE id=1001").fetchone()["is_refunded"] == 0
+
+
+def test_unverifiable_with_photo_no_history_refunds_via_tool(seeded_conn):
+    ctx = ToolContext(conn=seeded_conn, customer_id=1, today=date.today(), has_evidence=True)
+    res = execute_tool(
+        "issue_refund",
+        {"order_id": 1001, "reason": "received wired instead of wireless", "reason_category": "wrong_item"},
+        ctx,
+    )
+    assert json.loads(res.content)["refunded"] is True
+
+
 def test_issue_refund_requires_reason(seeded_conn):
     # R7: no reason/category -> refused, nothing recorded
     res = execute_tool("issue_refund", {"order_id": 1001}, _ctx(seeded_conn, 1))
@@ -35,8 +63,10 @@ def test_issue_refund_blocks_final_sale(seeded_conn):
 
 
 def test_issue_refund_approves_clean(seeded_conn):
+    # defective is unverifiable -> needs a photo; with evidence + clean order it approves
+    ctx = ToolContext(conn=seeded_conn, customer_id=1, today=date.today(), has_evidence=True)
     res = execute_tool(
-        "issue_refund", {"order_id": 1001, "reason": "earbuds dead on arrival", "reason_category": "defective"}, _ctx(seeded_conn, 1)
+        "issue_refund", {"order_id": 1001, "reason": "earbuds dead on arrival", "reason_category": "defective"}, ctx
     )
     assert json.loads(res.content)["refunded"] is True
     assert res.decision == "approved"

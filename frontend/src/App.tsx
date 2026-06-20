@@ -19,6 +19,8 @@ export interface ChatMsg {
   decision?: Decision;
   traceId?: string;
   options?: string[];
+  awaiting_photo?: boolean;
+  image?: string; // data URL thumbnail for an uploaded photo (user messages)
 }
 
 export default function App() {

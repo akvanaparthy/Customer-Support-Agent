@@ -24,6 +24,7 @@ export interface ChatResponse {
   reply: string;
   decision: Decision;
   options?: string[] | null;
+  awaiting_photo?: boolean;
   trace_id: string;
   session_id: string;
 }

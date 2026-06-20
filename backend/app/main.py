@@ -81,6 +81,20 @@ def patch_order(order_id: int, body: OrderUpdate):
         conn.close()
 
 
+def _parse_image(data_url):
+    """Turn a 'data:image/...;base64,XXX' data URL into {media_type, data}, or None."""
+    if not data_url:
+        return None
+    try:
+        header, b64 = data_url.split(",", 1)
+        media_type = header.split(";")[0].split(":", 1)[1]
+    except (ValueError, IndexError):
+        return None
+    if not b64 or not media_type.startswith("image/"):
+        return None
+    return {"media_type": media_type, "data": b64}
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     conn = connect(settings.db_path)
@@ -96,15 +110,19 @@ def chat(req: ChatRequest):
                 "customer_id": req.customer_id,
                 "messages": [],
                 "tickets": crm.get_customer_tickets(conn, req.customer_id),
+                "has_evidence": False,
             }
-        reply, decision, options, trace, messages = run_turn(
+        image = _parse_image(req.image)
+        if image:
+            session["has_evidence"] = True  # a real photo exists; "evidence" can't be faked with words
+        reply, decision, options, awaiting_photo, trace, messages = run_turn(
             _GRAPH, get_client(), conn, req.session_id, customer, session["messages"], req.message,
-            tickets=session["tickets"],
+            tickets=session["tickets"], image=image, has_evidence=session.get("has_evidence", False),
         )
         session["messages"] = messages
         save_trace(conn, trace)
         return ChatResponse(reply=reply, decision=decision, options=options,
-                            trace_id=trace.trace_id, session_id=req.session_id)
+                            awaiting_photo=awaiting_photo, trace_id=trace.trace_id, session_id=req.session_id)
     finally:
         conn.close()
 

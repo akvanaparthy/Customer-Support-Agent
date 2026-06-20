@@ -76,6 +76,18 @@ def prior_denied_categories(conn, order_id: int) -> set[str]:
     return {r["reason_category"] for r in rows}
 
 
+def has_prior_activity(conn, customer_id: int, exclude_order_id: int) -> bool:
+    """Has this customer been refunded before, or raised a ticket on a DIFFERENT order?
+    Used to give unverifiable claims extra scrutiny (R12)."""
+    if count_prior_refunds(conn, customer_id) > 0:
+        return True
+    row = conn.execute(
+        "SELECT COUNT(DISTINCT order_id) AS c FROM claims WHERE customer_id = ? AND order_id != ?",
+        (customer_id, exclude_order_id),
+    ).fetchone()
+    return row["c"] > 0
+
+
 def get_customer_tickets(conn, customer_id: int, limit: int = 8) -> list[dict]:
     """Compact history for a customer: the latest claim outcome per order they've
     contacted support about. Injected (cheaply) into new chats instead of transcripts."""

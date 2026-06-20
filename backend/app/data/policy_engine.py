@@ -7,6 +7,11 @@ from app.config import settings
 # let a change-of-mind bypass the 14-day window by re-labelling.
 LATE_VERIFY_CATEGORIES = {"defective", "damaged"}
 
+# Claims the system cannot confirm from data — the customer just asserts them.
+# These require a product photo before payout (R13) and human review if the
+# customer already has refund/ticket history (R12).
+UNVERIFIABLE_CATEGORIES = {"defective", "damaged", "wrong_item", "not_as_described"}
+
 
 @dataclass
 class PolicyDecision:
@@ -22,6 +27,8 @@ def evaluate_refund(
     reason_category: str | None = None,
     prior_refund_count: int = 0,
     prior_denied_categories=(),
+    evidence_provided: bool = True,
+    has_history: bool = False,
 ) -> PolicyDecision:
     reasons: list[str] = []
     matched: list[str] = []
@@ -97,6 +104,21 @@ def evaluate_refund(
         escalate_reasons.append(
             f"This order was previously denied under a different reason ({', '.join(shopped)}); "
             f"a changed reason ('{reason_category}') is flagged for human review."
+        )
+
+    # R13 / R12 — unverifiable claims need photo evidence; with refund/ticket history
+    # they go to a human even with a photo.
+    if reason_category in UNVERIFIABLE_CATEGORIES and not evidence_provided:
+        escalate_rules.append("R13_evidence_required")
+        escalate_reasons.append(
+            f"A '{reason_category}' claim cannot be confirmed from records; a product photo "
+            "(with the receipt in frame) is required before it can be approved."
+        )
+    elif reason_category in UNVERIFIABLE_CATEGORIES and has_history:
+        escalate_rules.append("R12_history_review")
+        escalate_reasons.append(
+            "Customer has prior refund/ticket history; unverifiable claims on this account "
+            "are reviewed by a human even with a photo."
         )
 
     if escalate_rules:

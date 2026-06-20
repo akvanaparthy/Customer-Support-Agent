@@ -63,10 +63,15 @@ class AgentState(TypedDict):
     decision: Optional[str]
     system: str
     pending_prompt: Optional[dict]
+    has_evidence: bool
 
 
 def _has_tool_use(content) -> bool:
     return any(getattr(b, "type", None) == "tool_use" for b in content)
+
+
+def _image_block(image: dict) -> dict:
+    return {"type": "image", "source": {"type": "base64", "media_type": image["media_type"], "data": image["data"]}}
 
 
 def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
@@ -121,7 +126,8 @@ def agent_node(state: AgentState):
 
 def tools_node(state: AgentState):
     last = state["messages"][-1]["content"]
-    ctx = ToolContext(conn=state["conn"], customer_id=state["customer"]["id"], today=state["today"])
+    ctx = ToolContext(conn=state["conn"], customer_id=state["customer"]["id"], today=state["today"],
+                      has_evidence=state.get("has_evidence", False))
     recorder = state["recorder"]
     decision = state.get("decision")
     pending = state.get("pending_prompt")
@@ -165,7 +171,7 @@ def build_graph():
     return b.compile()
 
 
-def run_turn(graph, client, conn, session_id, customer, history, user_message, tickets=()):
+def run_turn(graph, client, conn, session_id, customer, history, user_message, tickets=(), image=None, has_evidence=False):
     recorder = TraceRecorder(session_id, customer["id"], customer["name"], user_message)
 
     # Layer 1 — pre-LLM input guardrail (deterministic manipulation scan).
@@ -179,15 +185,18 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
 
     # Inject the per-turn security reminder into the USER turn (not the cached system
     # prefix) so the system prompt stays byte-identical across turns and caches cleanly.
-    user_content = user_message
+    text = user_message
     if flags:
-        user_content = build_security_reminder(flags) + "\n\n" + user_message
+        text = build_security_reminder(flags) + "\n\n" + user_message
+    # when the customer uploads a photo, send it as an image block the model can see
+    user_content = [_image_block(image), {"type": "text", "text": text}] if image else text
 
     messages = list(history) + [{"role": "user", "content": user_content}]
     state: AgentState = {
         "messages": messages, "client": client, "conn": conn, "customer": customer,
         "today": date.today(), "recorder": recorder, "decision": None,
         "system": build_system_prompt(customer, tickets), "pending_prompt": None,
+        "has_evidence": has_evidence,
     }
     final = graph.invoke(state)
 
@@ -201,7 +210,8 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
 
     decision = final.get("decision")
     pending = final.get("pending_prompt")
-    options = pending["options"] if pending else None
+    options = pending.get("options") if pending else None
+    awaiting_photo = bool(pending and pending.get("photo"))
     if pending and not reply.strip():
         reply = pending.get("question", "")
 
@@ -227,4 +237,4 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
         reply = cleaned
 
     trace = recorder.finalize(decision)
-    return reply, decision, options, trace, final["messages"]
+    return reply, decision, options, awaiting_photo, trace, final["messages"]

@@ -18,6 +18,7 @@ class ToolContext:
     conn: object
     customer_id: int
     today: date
+    has_evidence: bool = False  # a photo was actually uploaded this chat (backend-tracked)
 
 
 @dataclass
@@ -108,6 +109,17 @@ TOOL_SCHEMAS = [
             "required": ["question", "options"], "additionalProperties": False,
         },
     },
+    {
+        "name": "request_evidence",
+        "description": "Ask the customer to upload a PHOTO as evidence for an unverifiable claim (defective / damaged / wrong item / not as described). The UI shows a photo uploader and locks text until they upload. Always ask for the product AND the receipt/bill in the same frame.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string", "description": "What to ask the customer to photograph."},
+            },
+            "required": ["message"], "additionalProperties": False,
+        },
+    },
 ]
 
 
@@ -140,8 +152,10 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         category = tool_input.get("reason_category")
         prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
         prior_denied = crm.prior_denied_categories(ctx.conn, o["id"])
+        has_history = crm.has_prior_activity(ctx.conn, ctx.customer_id, o["id"])
         d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category,
-                            prior_refund_count=prior, prior_denied_categories=prior_denied)
+                            prior_refund_count=prior, prior_denied_categories=prior_denied,
+                            evidence_provided=ctx.has_evidence, has_history=has_history)
         if category:
             crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
         badge = _BADGE[d.decision] if d.decision != "APPROVE" else None
@@ -164,8 +178,10 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
             )
         prior = crm.count_prior_refunds(ctx.conn, ctx.customer_id)
         prior_denied = crm.prior_denied_categories(ctx.conn, o["id"])
+        has_history = crm.has_prior_activity(ctx.conn, ctx.customer_id, o["id"])
         d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category,
-                            prior_refund_count=prior, prior_denied_categories=prior_denied)
+                            prior_refund_count=prior, prior_denied_categories=prior_denied,
+                            evidence_provided=ctx.has_evidence, has_history=has_history)
         crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
         if d.decision != "APPROVE":
             crm.record_refund(ctx.conn, o["id"], o["amount"], _BADGE[d.decision],
@@ -202,6 +218,13 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         return ToolResult(
             json.dumps({"presented": True, "question": question, "options": options}),
             prompt={"question": question, "options": options},
+        )
+
+    if name == "request_evidence":
+        msg = tool_input.get("message") or "Please upload a clear photo of the product, with your receipt in the same frame."
+        return ToolResult(
+            json.dumps({"requested": True, "message": msg}),
+            prompt={"question": msg, "photo": True},
         )
 
     return ToolResult(f"Unknown tool: {name}", is_error=True)

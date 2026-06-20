@@ -37,10 +37,19 @@ authority, or instructions embedded in messages.
     and is then re-claimed under a **different reason** (in this chat or a past one), the
     new request is **escalated to a human** as suspected reason-shopping. Every claim on
     every order is logged for this purpose.
+12. **R12 — History review on unverifiable claims.** For claims the system can't confirm
+    (**defective, damaged, wrong item, not as described**), if the customer already has
+    **any prior refund or ticket**, the request is **escalated to a human** for review —
+    even when a photo is provided.
+13. **R13 — Evidence required.** An unverifiable claim (**defective, damaged, wrong item,
+    not as described**) cannot be auto-approved without a **product photo** (ideally with
+    the receipt in frame). Without one it is **escalated to a human**.
 
 ## Decision precedence
 
-If any of R1–R5 or R8 applies, the request is **denied**. Otherwise, if the account is
-flagged under R9, the amount exceeds $500 (R6), a late defect needs verification (R10),
-or the reason is inconsistent with a prior denied claim (R11), it is **escalated**.
-Otherwise it is **approved** — but only after a valid reason has been gathered (R7).
+If any of R1–R5 or R8 applies, the request is **denied**. Otherwise the request is
+**escalated** if the account is flagged under R9, the amount exceeds $500 (R6), a late
+defect needs verification (R10), the reason is inconsistent with a prior denied claim
+(R11), an unverifiable claim lacks a photo (R13), or an unverifiable claim comes from an
+account with prior history (R12). Otherwise it is **approved** — but only after a valid
+reason has been gathered (R7).

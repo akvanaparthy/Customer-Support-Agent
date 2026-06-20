@@ -38,6 +38,15 @@ def test_claim_log_and_prior_denied(seeded_conn):
     assert crm.prior_denied_categories(seeded_conn, 1002) == {"changed_mind"}
 
 
+def test_has_prior_activity(seeded_conn):
+    assert crm.has_prior_activity(seeded_conn, 1, 1001) is False
+    crm.log_claim(seeded_conn, 1002, 1, "changed_mind", "denied", "2026-06-15T00:00:00Z")
+    # a claim on a DIFFERENT order counts as prior activity
+    assert crm.has_prior_activity(seeded_conn, 1, 1001) is True
+    # but a claim only on the excluded order itself does not
+    assert crm.has_prior_activity(seeded_conn, 1, 1002) is False
+
+
 def test_customer_tickets(seeded_conn):
     crm.log_claim(seeded_conn, 1002, 1, "changed_mind", "denied", "2026-06-15T00:00:00Z")
     crm.log_claim(seeded_conn, 1001, 1, "defective", "approved", "2026-06-16T00:00:00Z")

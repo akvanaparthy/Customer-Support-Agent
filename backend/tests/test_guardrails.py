@@ -58,6 +58,14 @@ def test_output_guard_allows_non_claim():
     assert ok is True
 
 
+def test_output_guard_ignores_negated_completion():
+    # denials that mention "refund" + "issued/processed" must NOT be flagged
+    assert validate_output("Unfortunately a second refund cannot be issued on this order.", False)[0] is True
+    assert validate_output("This refund was not processed.", False)[0] is True
+    # a genuine fabricated completion is still caught
+    assert validate_output("Your refund has been processed and issued.", False)[0] is False
+
+
 def test_sanitize_redacts_rule_ids():
     cleaned, scrubbed = sanitize_output("Denied under Rule R3 (final sale) per policy R8 and R10_late_defect_review.")
     assert scrubbed is True

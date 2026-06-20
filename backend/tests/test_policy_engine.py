@@ -123,6 +123,34 @@ def test_same_reason_retry_not_flagged():
     assert d.decision == "APPROVE"
 
 
+def test_unverifiable_without_evidence_escalates():
+    # wrong_item with no photo -> escalate (R13)
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="wrong_item", evidence_provided=False,
+    )
+    assert d.decision == "ESCALATE"
+    assert "R13_evidence_required" in d.matched_rules
+
+
+def test_unverifiable_with_evidence_no_history_approves():
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="wrong_item", evidence_provided=True, has_history=False,
+    )
+    assert d.decision == "APPROVE"
+
+
+def test_unverifiable_with_history_escalates():
+    # photo provided, but the account has history -> human review (R12)
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="wrong_item", evidence_provided=True, has_history=True,
+    )
+    assert d.decision == "ESCALATE"
+    assert "R12_history_review" in d.matched_rules
+
+
 # --- R9: serial-return abuse ------------------------------------------------
 
 def test_abuse_escalates():

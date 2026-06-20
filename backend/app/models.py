@@ -52,12 +52,14 @@ class ChatRequest(BaseModel):
     session_id: str
     customer_id: int
     message: str
+    image: Optional[str] = None  # data URL ("data:image/...;base64,...") for photo evidence
 
 
 class ChatResponse(BaseModel):
     reply: str
     decision: Optional[str] = None
     options: Optional[list[str]] = None  # if set, UI shows buttons and locks free text
+    awaiting_photo: bool = False  # if true, UI shows a photo uploader and locks free text
     trace_id: str
     session_id: str
 

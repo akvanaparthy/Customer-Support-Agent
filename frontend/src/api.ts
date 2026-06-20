@@ -11,11 +11,11 @@ export const api = {
   policy: () => get<{ policy: string }>("/api/policy").then((d) => d.policy),
   traces: () => get<{ traces: TraceSummary[] }>("/api/traces").then((d) => d.traces),
   trace: (id: string) => get<Trace>(`/api/traces/${id}`),
-  chat: async (sessionId: string, customerId: number, message: string): Promise<ChatResponse> => {
+  chat: async (sessionId: string, customerId: number, message: string, image?: string): Promise<ChatResponse> => {
     const r = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ session_id: sessionId, customer_id: customerId, message }),
+      body: JSON.stringify({ session_id: sessionId, customer_id: customerId, message, image: image ?? null }),
     });
     if (!r.ok) throw new Error(`chat ${r.status}`);
     return r.json() as Promise<ChatResponse>;
