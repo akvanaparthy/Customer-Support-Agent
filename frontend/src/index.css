@@ -2,7 +2,123 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Markdown rendering inside agent chat bubbles */
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #f6f5f2;
+  color: #17171c;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* keyboard focus only (mouse clicks stay clean) */
+:where(button, select, a, summary):focus-visible {
+  outline: 2px solid #5648e0;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+summary {
+  list-style: none;
+}
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* thinking dots */
+.dots span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin: 0 2px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: blink 1.2s infinite both;
+}
+.dots span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.dots span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.2;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* trace "flight recorder" spine */
+.rail {
+  position: relative;
+  width: 1.5rem;
+  flex: none;
+}
+.rail::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: #e7e5e0;
+}
+.trace-step:first-child .rail::before {
+  top: 0.6rem;
+}
+.trace-step:last-child .rail::before {
+  bottom: calc(100% - 0.6rem);
+}
+.node {
+  position: absolute;
+  left: 50%;
+  top: 0.32rem;
+  transform: translateX(-50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 9999px;
+  background: #a1a1aa;
+  box-shadow: 0 0 0 4px #fff;
+  z-index: 1;
+}
+.node-agent {
+  background: #5648e0;
+}
+.node-tool {
+  background: #3f3f46;
+}
+.node-guardrail {
+  background: #7c3aed;
+  box-shadow: 0 0 0 4px #fff, 0 0 0 6px rgba(124, 58, 237, 0.2);
+}
+.node-retry {
+  background: #d97706;
+}
+.node-error {
+  background: #dc2626;
+  box-shadow: 0 0 0 4px #fff, 0 0 0 6px rgba(220, 38, 38, 0.2);
+}
+
+/* markdown inside agent chat bubbles */
 .md > :first-child {
   margin-top: 0;
 }
@@ -10,42 +126,73 @@
   margin-bottom: 0;
 }
 .md p {
-  margin: 0.35rem 0;
+  margin: 0.4rem 0;
 }
 .md ul {
   list-style: disc;
-  padding-left: 1.25rem;
-  margin: 0.35rem 0;
+  padding-left: 1.2rem;
+  margin: 0.4rem 0;
 }
 .md ol {
   list-style: decimal;
-  padding-left: 1.25rem;
-  margin: 0.35rem 0;
+  padding-left: 1.2rem;
+  margin: 0.4rem 0;
 }
 .md table {
   border-collapse: collapse;
-  margin: 0.5rem 0;
+  margin: 0.6rem 0;
+  width: 100%;
   font-size: 0.8rem;
 }
 .md th,
 .md td {
-  border: 1px solid #cbd5e1;
-  padding: 2px 8px;
+  border: 1px solid #e7e5e0;
+  padding: 3px 9px;
   text-align: left;
 }
 .md th {
-  background: #e2e8f0;
+  background: #f6f5f2;
+  font-weight: 600;
 }
 .md code {
-  background: #e2e8f0;
-  padding: 0 3px;
-  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+  background: #f1ecfd;
+  color: #5648e0;
+  padding: 0 4px;
+  border-radius: 4px;
   font-size: 0.85em;
-}
-.md a {
-  color: #2563eb;
-  text-decoration: underline;
 }
 .md strong {
   font-weight: 600;
+}
+.md a {
+  color: #5648e0;
+  text-decoration: underline;
+}
+
+/* scrollbars */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #e2e0da;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #c9c7c0;
+  background-clip: padding-box;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
