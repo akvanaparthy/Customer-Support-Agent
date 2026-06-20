@@ -1,6 +1,7 @@
 import types
 
-from app.agent.graph import build_graph, run_turn
+import app.agent.graph as graph_mod
+from app.agent.graph import arm_fault, build_graph, run_turn
 
 
 class FakeUsage:
@@ -83,6 +84,40 @@ def test_ask_user_ends_turn_with_options(seeded_conn):
     assert options == ["#1001 — Earbuds", "#1002 — Hoodie"]
     assert "order" in reply.lower()
     assert [s.type for s in trace.steps] == ["input_guardrail", "llm_call", "tool_call"]
+
+
+def test_injected_retry_recovers(seeded_conn, monkeypatch):
+    monkeypatch.setattr(graph_mod.time, "sleep", lambda *a: None)
+    arm_fault("retry")
+    try:
+        responses = [FakeResp([_text("Your order looks fine.")], "end_turn", FakeUsage(100, 20))]
+        graph = build_graph()
+        customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
+        reply, decision, options, awaiting_photo, trace, messages = run_turn(
+            graph, FakeClient(responses), seeded_conn, "fault", customer, [], "hi"
+        )
+        # one transient failure was retried, then the call succeeded
+        assert any(s.type == "retry" for s in trace.steps)
+        assert "fine" in reply.lower()
+    finally:
+        arm_fault("off")
+
+
+def test_injected_failure_persists_trace(seeded_conn, monkeypatch):
+    monkeypatch.setattr(graph_mod.time, "sleep", lambda *a: None)
+    arm_fault("fail")
+    try:
+        graph = build_graph()
+        customer = {"id": 1, "name": "Alice Tan", "tier": "standard"}
+        reply, decision, options, awaiting_photo, trace, messages = run_turn(
+            graph, FakeClient([]), seeded_conn, "faultf", customer, [], "hi"
+        )
+        # the run fails but a trace (with an error step) is still produced, and we degrade gracefully
+        assert decision is None
+        assert "ref:" in reply
+        assert any(s.status == "error" for s in trace.steps)
+    finally:
+        arm_fault("off")
 
 
 def test_request_evidence_awaits_photo(seeded_conn):

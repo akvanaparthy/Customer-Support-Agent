@@ -4,7 +4,7 @@ import anthropic
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.agent.graph import build_graph, run_turn
+from app.agent.graph import arm_fault, build_graph, run_turn
 from app.agent.prompts import load_policy_text
 from app.agent.trace import get_trace, list_trace_summaries, save_trace
 from app.config import settings
@@ -12,9 +12,11 @@ from app.data import crm
 from app.data.db import connect
 from app.data.seed import ensure_seeded
 from app.models import ChatRequest, ChatResponse, OrderUpdate
+from app.observability import log_event, setup_logging
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     ensure_seeded(settings.db_path)
     yield
 
@@ -39,6 +41,17 @@ def get_client():
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.post("/api/debug/fault")
+def debug_fault(mode: str = "off"):
+    """Demo-only chaos hook: arm a transient ('retry') or hard ('fail') fault on the
+    next agent call, so a failed/retried step can be demonstrated and debugged."""
+    if not settings.enable_fault_injection:
+        raise HTTPException(status_code=403, detail="Fault injection disabled")
+    state = arm_fault(mode)
+    log_event("fault_armed", mode=mode, state=state)
+    return {"armed": state}
 
 
 @app.get("/api/policy")

@@ -13,9 +13,10 @@ from app.agent.guardrails import (
     validate_output,
 )
 from app.agent.prompts import build_system_prompt
-from app.agent.tools import TOOL_SCHEMAS, ToolContext, execute_tool
+from app.agent.tools import TOOL_SCHEMAS, ToolContext, ToolResult, execute_tool
 from app.agent.trace import TraceRecorder
 from app.config import settings
+from app.observability import log_event
 
 RETRYABLE = (
     anthropic.RateLimitError,
@@ -23,6 +24,25 @@ RETRYABLE = (
     anthropic.APIConnectionError,
     anthropic.InternalServerError,
 )
+
+
+class _InjectedFault(Exception):
+    """Synthetic transient failure for demonstrating retry/error handling on camera."""
+
+
+_FAULT = {"mode": "off", "remaining": 0}
+
+
+def arm_fault(mode: str) -> dict:
+    """Arm a one-shot fault for the NEXT llm call(s): 'retry' (one transient failure then
+    recovers), 'fail' (exhausts retries -> error step), or 'off'. Demo-only."""
+    if mode == "retry":
+        _FAULT.update(mode="retry", remaining=1)
+    elif mode == "fail":
+        _FAULT.update(mode="fail", remaining=99)
+    else:
+        _FAULT.update(mode="off", remaining=0)
+    return dict(_FAULT)
 
 
 def _get(b, key, default=None):
@@ -80,6 +100,9 @@ def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
     for attempt in range(max_attempts):
         start = time.perf_counter()
         try:
+            if _FAULT["remaining"] > 0:
+                _FAULT["remaining"] -= 1
+                raise _InjectedFault("Simulated transient API failure (injected for demo)")
             resp = client.messages.create(
                 model=settings.model,
                 max_tokens=settings.max_tokens,
@@ -105,16 +128,19 @@ def call_llm_with_retry(state: AgentState, max_attempts: int = 3):
                 context=_serialize_context(state["system"], state["messages"]),
             )
             return resp
-        except RETRYABLE as exc:
+        except (*RETRYABLE, _InjectedFault) as exc:
             latency = int((time.perf_counter() - start) * 1000)
             last_exc = exc
             recorder.add_step(
                 "retry", "claude", input={"attempt": attempt + 1},
                 output=f"{type(exc).__name__}: {exc}", latency_ms=latency, status="retried",
             )
+            log_event("llm_retry", trace_id=recorder.trace_id, attempt=attempt + 1,
+                      error=f"{type(exc).__name__}: {exc}")
             time.sleep(min(2 ** attempt * 0.5, 4))
     recorder.add_step("error", "claude",
                       output=f"LLM failed after {max_attempts} attempts: {last_exc}", status="error")
+    log_event("llm_error", trace_id=recorder.trace_id, error=str(last_exc))
     raise last_exc
 
 
@@ -136,7 +162,10 @@ def tools_node(state: AgentState):
         if getattr(block, "type", None) != "tool_use":
             continue
         start = time.perf_counter()
-        res = execute_tool(block.name, block.input, ctx)
+        try:
+            res = execute_tool(block.name, block.input, ctx)
+        except Exception as exc:  # a tool bug must not crash the whole turn
+            res = ToolResult(json.dumps({"error": "internal_error", "message": str(exc)}), is_error=True)
         latency = int((time.perf_counter() - start) * 1000)
         recorder.add_step(
             "tool_call", block.name, input=block.input, output=res.content,
@@ -198,7 +227,19 @@ def run_turn(graph, client, conn, session_id, customer, history, user_message, t
         "system": build_system_prompt(customer, tickets), "pending_prompt": None,
         "has_evidence": has_evidence,
     }
-    final = graph.invoke(state)
+    log_event("turn_start", trace_id=recorder.trace_id, session_id=session_id,
+              customer_id=customer["id"], has_image=bool(image), flags=flags or None)
+    try:
+        final = graph.invoke(state)
+    except Exception as exc:
+        # persist the failed run so it's debuggable in the dashboard, and degrade gracefully
+        if not (recorder.steps and recorder.steps[-1].status == "error"):
+            recorder.add_step("error", "agent", output=f"{type(exc).__name__}: {exc}", status="error")
+        log_event("turn_error", trace_id=recorder.trace_id, error=f"{type(exc).__name__}: {exc}")
+        trace = recorder.finalize(None)
+        fallback = ("I'm sorry — something went wrong on our end and I couldn't finish that. "
+                    f"Please try again in a moment. (ref: {recorder.trace_id[:8]})")
+        return fallback, None, None, False, trace, list(history)
 
     reply = ""
     for msg in reversed(final["messages"]):

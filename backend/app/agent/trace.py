@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from app.config import settings
 from app.models import Trace, TraceStep, TraceSummary
+from app.observability import log_event
 
 
 def compute_cost(tokens_in: int, tokens_out: int, cache_read: int = 0, cache_write: int = 0) -> float:
@@ -40,9 +41,12 @@ class TraceRecorder:
             cost_usd=compute_cost(tokens_in, tokens_out, cache_read, cache_write),
             status=status, context=context,
         ))
+        log_event("step", trace_id=self.trace_id, session_id=self.session_id,
+                  step=type, name=name, status=status, latency_ms=latency_ms,
+                  tokens_in=tokens_in, tokens_out=tokens_out)
 
     def finalize(self, decision) -> Trace:
-        return Trace(
+        trace = Trace(
             trace_id=self.trace_id, session_id=self.session_id,
             customer_id=self.customer_id, customer_name=self.customer_name,
             timestamp=self.timestamp, user_message=self.user_message, decision=decision,
@@ -53,6 +57,10 @@ class TraceRecorder:
             total_latency_ms=sum(s.latency_ms for s in self.steps),
             step_count=len(self.steps),
         )
+        log_event("turn_complete", trace_id=self.trace_id, decision=decision,
+                  step_count=trace.step_count, total_tokens=trace.total_tokens_in + trace.total_tokens_out,
+                  total_cost_usd=trace.total_cost_usd, total_latency_ms=trace.total_latency_ms)
+        return trace
 
 
 def save_trace(conn, trace: Trace) -> None:

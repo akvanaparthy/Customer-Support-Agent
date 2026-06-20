@@ -20,6 +20,9 @@ export const api = {
     if (!r.ok) throw new Error(`chat ${r.status}`);
     return r.json() as Promise<ChatResponse>;
   },
+  setFault: async (mode: "retry" | "fail" | "off"): Promise<void> => {
+    await fetch(`/api/debug/fault?mode=${mode}`, { method: "POST" });
+  },
   orders: () => get<{ orders: AdminOrder[] }>("/api/orders").then((d) => d.orders),
   updateOrder: async (
     id: number,
