@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     abuse_refund_threshold: int = 2
     price_input_per_mtok: float = 3.0
     price_output_per_mtok: float = 15.0
-    enable_fault_injection: bool = True  # demo-only chaos hook; would be False in prod
+    enable_fault_injection: bool = False  # chaos hook; off in prod, enable locally via ENABLE_FAULT_INJECTION=1
     otel_enabled: bool = False  # export OpenTelemetry spans (OTLP) when true; off by default
 
 
