@@ -1,6 +1,7 @@
 Goal.md
 ./claude
 docs
+script.md
 # Python
 __pycache__/
 *.pyc
@@ -11,3 +12,4 @@ __pycache__/
 # Node / frontend
 node_modules/
 dist/
+.vite/
