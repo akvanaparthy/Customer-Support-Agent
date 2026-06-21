@@ -20,6 +20,15 @@ def test_request_evidence_returns_prompt(seeded_conn):
     assert res.prompt == {"question": "Upload a photo", "photo": True}
 
 
+def test_needs_photo_shows_no_decision_badge(seeded_conn):
+    # R13-only (just needs a photo) is a request for evidence, not an escalation -> no badge
+    res = execute_tool("check_refund_eligibility", {"order_id": 1001, "reason_category": "damaged"}, _ctx(seeded_conn, 1))
+    payload = json.loads(res.content)
+    assert payload["decision"] == "ESCALATE"
+    assert payload["matched_rules"] == ["R13_evidence_required"]
+    assert res.decision is None
+
+
 def test_unverifiable_without_photo_escalates_via_tool(seeded_conn):
     # wrong_item, ctx has no evidence -> escalate (R13), nothing refunded
     res = execute_tool(

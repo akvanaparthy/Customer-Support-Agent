@@ -8,6 +8,15 @@ from app.data.policy_engine import evaluate_refund
 
 _BADGE = {"APPROVE": "approved", "DENY": "denied", "ESCALATE": "escalated"}
 
+
+def _decision_badge(d):
+    """Customer-facing decision badge. An R13 'needs a photo' escalation is a request for
+    evidence, not a real decision — show no badge for it."""
+    if d.decision == "ESCALATE" and d.matched_rules == ["R13_evidence_required"]:
+        return None
+    return _BADGE[d.decision] if d.decision != "APPROVE" else None
+
+
 REASON_CATEGORIES = [
     "defective", "damaged", "wrong_item", "not_as_described", "arrived_late", "changed_mind", "other",
 ]
@@ -162,7 +171,7 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
                             evidence_provided=ctx.has_evidence, has_history=has_history)
         if category:
             crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
-        badge = _BADGE[d.decision] if d.decision != "APPROVE" else None
+        badge = _decision_badge(d)
         return ToolResult(
             json.dumps({"decision": d.decision, "reasons": d.reasons, "matched_rules": d.matched_rules}),
             decision=badge,
@@ -195,7 +204,7 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
             return ToolResult(
                 json.dumps({"refunded": False, "decision": d.decision, "reasons": d.reasons,
                             "matched_rules": d.matched_rules, "message": "Refund refused by policy engine."}),
-                decision=_BADGE[d.decision],
+                decision=_decision_badge(d),
             )
         crm.mark_order_refunded(ctx.conn, o["id"], now_iso()[:10])
         crm.record_refund(ctx.conn, o["id"], o["amount"], "approved", f"[{category}] {reason}", now_iso())
