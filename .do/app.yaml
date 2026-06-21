@@ -36,6 +36,33 @@ services:
       - key: ENABLE_FAULT_INJECTION
         value: "1"   # DEMO: lets reviewers trigger a retried/failed run; set to 0 for a real prod launch
         scope: RUN_TIME
+      - key: OTEL_ENABLED
+        value: "1"
+        scope: RUN_TIME
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        value: http://jaeger:4318   # internal: backend ships spans to the jaeger component
+        scope: RUN_TIME
+
+  # OpenTelemetry trace backend. UI public at /jaeger, OTLP receiver internal on 4318.
+  - name: jaeger
+    image:
+      registry_type: DOCKER_HUB
+      registry: jaegertracing
+      repository: all-in-one
+      tag: "1.57"
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 16686
+    internal_ports:
+      - 4318
+    routes:
+      - path: /jaeger
+        preserve_path_prefix: true
+    envs:
+      - key: COLLECTOR_OTLP_ENABLED
+        value: "true"
+      - key: QUERY_BASE_PATH
+        value: /jaeger
 
 static_sites:
   - name: frontend
