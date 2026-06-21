@@ -134,18 +134,31 @@ def test_unverifiable_without_evidence_escalates():
 
 
 def test_unverifiable_with_evidence_no_history_approves():
+    # photo includes a matching receipt and the account is clean -> APPROVE
     d = evaluate_refund(
         _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
-        1, TODAY, reason_category="wrong_item", evidence_provided=True, has_history=False,
+        1, TODAY, reason_category="wrong_item", evidence_provided=True,
+        evidence_has_receipt=True, has_history=False,
     )
     assert d.decision == "APPROVE"
 
 
-def test_unverifiable_with_history_escalates():
-    # photo provided, but the account has history -> human review (R12)
+def test_unverifiable_photo_without_receipt_escalates():
+    # a product-only photo (no receipt in frame) is NOT enough -> escalate (R13)
     d = evaluate_refund(
         _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
-        1, TODAY, reason_category="wrong_item", evidence_provided=True, has_history=True,
+        1, TODAY, reason_category="wrong_item", evidence_provided=True, evidence_has_receipt=False,
+    )
+    assert d.decision == "ESCALATE"
+    assert "R13_evidence_required" in d.matched_rules
+
+
+def test_unverifiable_with_history_escalates():
+    # valid photo (product + receipt), but the account has history -> human review (R12)
+    d = evaluate_refund(
+        _order(delivered_date=(TODAY - timedelta(days=5)).isoformat()),
+        1, TODAY, reason_category="wrong_item", evidence_provided=True,
+        evidence_has_receipt=True, has_history=True,
     )
     assert d.decision == "ESCALATE"
     assert "R12_history_review" in d.matched_rules

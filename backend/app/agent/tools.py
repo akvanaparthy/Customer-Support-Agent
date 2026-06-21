@@ -80,6 +80,10 @@ TOOL_SCHEMAS = [
                 "order_id": {"type": "integer"},
                 "reason": {"type": "string", "description": "The specific reason the customer gave."},
                 "reason_category": {"type": "string", "enum": REASON_CATEGORIES},
+                "evidence_has_receipt": {
+                    "type": "boolean",
+                    "description": "For unverifiable claims only: set true ONLY if the uploaded photo clearly shows a receipt/bill matching this order alongside the product. A product-only photo (no receipt) must be false.",
+                },
             },
             "required": ["order_id", "reason", "reason_category"], "additionalProperties": False,
         },
@@ -181,7 +185,9 @@ def execute_tool(name: str, tool_input: dict, ctx: ToolContext) -> ToolResult:
         has_history = crm.has_prior_activity(ctx.conn, ctx.customer_id, o["id"])
         d = evaluate_refund(o, ctx.customer_id, ctx.today, reason_category=category,
                             prior_refund_count=prior, prior_denied_categories=prior_denied,
-                            evidence_provided=ctx.has_evidence, has_history=has_history)
+                            evidence_provided=ctx.has_evidence,
+                            evidence_has_receipt=bool(tool_input.get("evidence_has_receipt", False)),
+                            has_history=has_history)
         crm.log_claim(ctx.conn, o["id"], ctx.customer_id, category, _BADGE[d.decision], now_iso())
         if d.decision != "APPROVE":
             crm.record_refund(ctx.conn, o["id"], o["amount"], _BADGE[d.decision],

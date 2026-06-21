@@ -28,6 +28,7 @@ def evaluate_refund(
     prior_refund_count: int = 0,
     prior_denied_categories=(),
     evidence_provided: bool = True,
+    evidence_has_receipt: bool = True,
     has_history: bool = False,
 ) -> PolicyDecision:
     reasons: list[str] = []
@@ -106,13 +107,13 @@ def evaluate_refund(
             f"a changed reason ('{reason_category}') is flagged for human review."
         )
 
-    # R13 / R12 — unverifiable claims need photo evidence; with refund/ticket history
-    # they go to a human even with a photo.
-    if reason_category in UNVERIFIABLE_CATEGORIES and not evidence_provided:
+    # R13 / R12 — unverifiable claims need a photo showing BOTH the product and a matching
+    # receipt/bill; with refund/ticket history they go to a human even with a valid photo.
+    if reason_category in UNVERIFIABLE_CATEGORIES and not (evidence_provided and evidence_has_receipt):
         escalate_rules.append("R13_evidence_required")
         escalate_reasons.append(
-            f"A '{reason_category}' claim cannot be confirmed from records; a product photo "
-            "(with the receipt in frame) is required before it can be approved."
+            f"A '{reason_category}' claim can't be confirmed from records; it needs a clear photo "
+            "showing the product AND a matching receipt/bill in the same frame before it can be approved."
         )
     elif reason_category in UNVERIFIABLE_CATEGORIES and has_history:
         escalate_rules.append("R12_history_review")

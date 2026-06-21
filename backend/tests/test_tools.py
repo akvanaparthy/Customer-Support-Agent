@@ -37,7 +37,8 @@ def test_unverifiable_with_photo_no_history_refunds_via_tool(seeded_conn):
     ctx = ToolContext(conn=seeded_conn, customer_id=1, today=date.today(), has_evidence=True)
     res = execute_tool(
         "issue_refund",
-        {"order_id": 1001, "reason": "received wired instead of wireless", "reason_category": "wrong_item"},
+        {"order_id": 1001, "reason": "received wired instead of wireless", "reason_category": "wrong_item",
+         "evidence_has_receipt": True},
         ctx,
     )
     assert json.loads(res.content)["refunded"] is True
@@ -66,7 +67,10 @@ def test_issue_refund_approves_clean(seeded_conn):
     # defective is unverifiable -> needs a photo; with evidence + clean order it approves
     ctx = ToolContext(conn=seeded_conn, customer_id=1, today=date.today(), has_evidence=True)
     res = execute_tool(
-        "issue_refund", {"order_id": 1001, "reason": "earbuds dead on arrival", "reason_category": "defective"}, ctx
+        "issue_refund",
+        {"order_id": 1001, "reason": "earbuds dead on arrival", "reason_category": "defective",
+         "evidence_has_receipt": True},
+        ctx,
     )
     assert json.loads(res.content)["refunded"] is True
     assert res.decision == "approved"
