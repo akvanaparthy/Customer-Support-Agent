@@ -58,7 +58,6 @@ export default function App() {
           </div>
           <div className="leading-tight">
             <div className="font-display text-sm font-bold tracking-tight text-ink">Refund Agent</div>
-            <div className="text-[10px] text-muted">policy enforced in code</div>
           </div>
         </div>
         <nav className="flex items-center gap-1 rounded-xl border border-line bg-paper p-1">
