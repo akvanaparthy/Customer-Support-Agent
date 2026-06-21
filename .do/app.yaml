@@ -33,6 +33,9 @@ services:
       - key: MODEL
         value: claude-sonnet-4-6
         scope: RUN_TIME
+      - key: ENABLE_FAULT_INJECTION
+        value: "1"   # DEMO: lets reviewers trigger a retried/failed run; set to 0 for a real prod launch
+        scope: RUN_TIME
 
 static_sites:
   - name: frontend
