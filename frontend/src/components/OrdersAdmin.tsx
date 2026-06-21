@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { AdminOrder } from "../types";
 
-const STATUSES = ["processing", "shipped", "delivered", "cancelled"];
+const STATUSES = ["processing", "shipped", "delivered", "cancelled", "escalated", "refunded"];
 
 const statusText: Record<string, string> = {
   delivered: "text-approved",
   shipped: "text-agent",
   processing: "text-escalated",
   cancelled: "text-muted",
+  escalated: "text-escalated",
+  refunded: "text-agent",
 };
 
 type Patch = Partial<{ status: string; is_refunded: boolean; is_final_sale: boolean }>;

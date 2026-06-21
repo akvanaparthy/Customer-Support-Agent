@@ -8,6 +8,8 @@ const statusChip: Record<string, string> = {
   shipped: "bg-agent-soft text-agent",
   processing: "bg-escalated-soft text-escalated",
   cancelled: "bg-line text-muted",
+  escalated: "bg-escalated-soft text-escalated",
+  refunded: "bg-agent-soft text-agent",
 };
 
 function initials(name: string) {
