@@ -1,0 +1,48 @@
+# DigitalOcean App Platform spec.
+#
+# Deploy:
+#   1. In the DO console, connect this GitHub repo (one-time OAuth).
+#   2. doctl apps create --spec .do/app.yaml      (or: Apps -> Create -> "from app spec")
+#   3. Set the ANTHROPIC_API_KEY secret in the app's Settings (encrypted at rest).
+#
+# Result: backend service at /api, frontend static site at /, one managed-HTTPS domain
+# (*.ondigitalocean.app). Fault injection stays OFF (env not set) — safe for public.
+name: refund-agent
+region: nyc
+
+services:
+  - name: backend
+    source_dir: backend
+    dockerfile_path: backend/Dockerfile
+    github:
+      repo: akvanaparthy/Customer-Support-Agent
+      branch: main
+      deploy_on_push: true
+    http_port: 8000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    health_check:
+      http_path: /api/health
+    routes:
+      - path: /api
+        preserve_path_prefix: true   # backend sees /api/... unchanged
+    envs:
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+      - key: MODEL
+        value: claude-sonnet-4-6
+        scope: RUN_TIME
+
+static_sites:
+  - name: frontend
+    source_dir: frontend
+    github:
+      repo: akvanaparthy/Customer-Support-Agent
+      branch: main
+      deploy_on_push: true
+    build_command: npm install && npm run build
+    output_dir: dist
+    catchall_document: index.html   # SPA fallback
+    routes:
+      - path: /
