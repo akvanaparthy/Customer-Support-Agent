@@ -103,7 +103,7 @@ def get_customer_tickets(conn, customer_id: int, limit: int = 8) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-ALLOWED_ORDER_STATUSES = {"processing", "shipped", "delivered", "cancelled"}
+ALLOWED_ORDER_STATUSES = {"processing", "shipped", "delivered", "cancelled", "escalated", "refunded"}
 
 
 def list_all_orders(conn) -> list[dict]:
