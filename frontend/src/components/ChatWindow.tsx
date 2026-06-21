@@ -238,6 +238,7 @@ export default function ChatWindow({
                     </svg>
                     Upload a photo
                   </button>
+                  <p className="mt-1.5 text-[11px] text-muted">Include the product and your receipt/bill in one photo.</p>
                 </div>
               )}
             </div>
